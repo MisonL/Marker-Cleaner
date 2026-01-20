@@ -156,6 +156,7 @@ export class BatchProcessor {
     if (result.outputBuffer) {
       // Pro 模式：AI 直接返回图片
       outputBuffer = result.outputBuffer;
+      this.progress.totalImageOutputs++; // 追踪图片生成次数
     } else if (result.boxes && result.boxes.length > 0) {
       // Nano 模式：本地修复
       this.logger.debug(`检测到 ${result.boxes.length} 个标记区域，执行本地修复`);
@@ -184,8 +185,8 @@ export class BatchProcessor {
     const pricing = this.config.pricing;
     const inputCost = (this.progress.totalInputTokens / 1_000_000) * pricing.inputTokenPer1M;
     const outputCost = (this.progress.totalOutputTokens / 1_000_000) * pricing.outputTokenPer1M;
-    // TODO: 如果有图片输出，加上 imageOutput 成本
-    this.progress.totalCost = inputCost + outputCost;
+    const imageCost = this.progress.totalImageOutputs * pricing.imageOutput;
+    this.progress.totalCost = inputCost + outputCost + imageCost;
     this.onCostUpdate?.(this.progress.totalCost);
   }
 
@@ -204,6 +205,7 @@ export class BatchProcessor {
       processedFiles: [],
       totalInputTokens: 0,
       totalOutputTokens: 0,
+      totalImageOutputs: 0,
       totalCost: 0,
       lastUpdated: new Date().toISOString(),
     };

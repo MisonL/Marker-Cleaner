@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, type GenerateContentResult } from "@google/generative-ai";
+import { GoogleGenerativeAI, type GenerateContentResult, type RequestOptions } from "@google/generative-ai";
 import type { AIProvider, ProcessResult, BoundingBox } from "../types";
 import type { Config } from "../config-manager";
 
@@ -8,10 +8,17 @@ export class GoogleProvider implements AIProvider {
 
   private client: GoogleGenerativeAI;
   private modelName: string;
+  private requestOptions: RequestOptions;
 
   constructor(config: Config) {
     this.client = new GoogleGenerativeAI(config.apiKey);
     this.modelName = config.modelName;
+
+    // 支持自定义 Base URL (用于代理)
+    this.requestOptions = {};
+    if (config.baseUrl) {
+      this.requestOptions.baseUrl = config.baseUrl;
+    }
 
     // 判断是否支持原生图片编辑 (带 "image" 的模型名)
     this.supportsImageEdit = this.modelName.toLowerCase().includes("image");
@@ -22,7 +29,10 @@ export class GoogleProvider implements AIProvider {
       const base64 = imageBuffer.toString("base64");
       const mimeType = this.detectMimeType(imageBuffer);
 
-      const model = this.client.getGenerativeModel({ model: this.modelName });
+      const model = this.client.getGenerativeModel(
+        { model: this.modelName },
+        this.requestOptions
+      );
       const response = await model.generateContent([
         {
           inlineData: {

@@ -106,6 +106,7 @@ export interface Progress {
   processedFiles: string[];
   totalInputTokens: number;
   totalOutputTokens: number;
+  totalImageOutputs: number;
   totalCost: number;
   lastUpdated: string;
 }
@@ -118,6 +119,7 @@ export function loadProgress(cwd: string = process.cwd()): Progress {
       processedFiles: [],
       totalInputTokens: 0,
       totalOutputTokens: 0,
+      totalImageOutputs: 0,
       totalCost: 0,
       lastUpdated: new Date().toISOString(),
     };
@@ -131,6 +133,7 @@ export function loadProgress(cwd: string = process.cwd()): Progress {
       processedFiles: [],
       totalInputTokens: 0,
       totalOutputTokens: 0,
+      totalImageOutputs: 0,
       totalCost: 0,
       lastUpdated: new Date().toISOString(),
     };
@@ -156,6 +159,7 @@ export function clearProgress(cwd: string = process.cwd()): void {
           processedFiles: [],
           totalInputTokens: 0,
           totalOutputTokens: 0,
+          totalImageOutputs: 0,
           totalCost: 0,
           lastUpdated: new Date().toISOString(),
         },
