@@ -257,21 +257,21 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
     } else if (key.downArrow) {
       setFocusIndex((i) => Math.min(fields.length - 1, i + 1));
     } else if (key.return) {
-        // Toggle boolean or select, or enter edit mode for text
         const field = fields[focusIndex];
         if (!field) return;
 
+        const key = field.key;
         if (field.type === "boolean") {
             setEditConfig(prev => ({ 
               ...prev, 
-              [field.key]: !prev[field.key as keyof Config] 
+              [key]: !prev[key] 
             }));
         } else if (field.type === "select" && field.options) {
-             const currentVal = editConfig[field.key as keyof Config] as string;
+             const currentVal = editConfig[key] as string;
              const nextIndex = (field.options.indexOf(currentVal) + 1) % field.options.length;
              setEditConfig(prev => ({ 
                ...prev, 
-               [field.key]: field.options![nextIndex] 
+               [key]: field.options![nextIndex] 
              }));
         } else {
             setIsEditing(true);
