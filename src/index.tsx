@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { render, Box, Text, useApp, useInput } from "ink";
 import SelectInput from "ink-select-input";
+import TextInput from "ink-text-input"; // Added import
 import Spinner from "ink-spinner";
 import { loadConfig, saveConfig, resetConfig, type Config } from "./lib/config-manager";
 import { createProvider } from "./lib/ai";
@@ -217,49 +218,105 @@ interface ConfigScreenProps {
 const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel }) => {
   const [editConfig, setEditConfig] = useState(config);
   const [focusIndex, setFocusIndex] = useState(0);
+  const [isEditing, setIsEditing] = useState(false);
 
-  const fields = [
-    { key: "inputDir", label: "输入目录", value: editConfig.inputDir },
-    { key: "outputDir", label: "输出目录", value: editConfig.outputDir },
-    { key: "apiKey", label: "API Key", value: editConfig.apiKey ? "****" : "(未设置)" },
-    { key: "baseUrl", label: "Base URL", value: editConfig.baseUrl ?? "(默认)" },
-    { key: "modelName", label: "模型名称", value: editConfig.modelName },
-    { key: "provider", label: "Provider", value: editConfig.provider },
-    { key: "recursive", label: "递归遍历", value: editConfig.recursive ? "是" : "否" },
-    { key: "previewCount", label: "预览数量", value: String(editConfig.previewCount) },
-    { key: "debugLog", label: "Debug 日志", value: editConfig.debugLog ? "是" : "否" },
+  const fields: { key: keyof Config; label: string; type: "text" | "password" | "boolean" | "select"; options?: string[] }[] = [
+    { key: "apiKey", label: "API Key", type: "password" },
+    { key: "baseUrl", label: "Base URL", type: "text" },
+    { key: "provider", label: "Provider", type: "select", options: ["google", "openai"] },
+    { key: "modelName", label: "模型名称", type: "text" },
+    { key: "inputDir", label: "输入目录", type: "text" },
+    { key: "outputDir", label: "输出目录", type: "text" },
+    { key: "recursive", label: "递归遍历", type: "boolean" },
+    { key: "previewCount", label: "预览数量", type: "text" },
+    { key: "debugLog", label: "Debug 日志", type: "boolean" },
   ];
 
   useInput((input, key) => {
+    if (isEditing) {
+        if (key.escape || key.return) {
+            setIsEditing(false);
+        }
+        return;
+    }
+
     if (key.upArrow) {
       setFocusIndex((i) => Math.max(0, i - 1));
     } else if (key.downArrow) {
       setFocusIndex((i) => Math.min(fields.length - 1, i + 1));
+    } else if (key.return) {
+        // Toggle boolean or select, or enter edit mode for text
+        const field = fields[focusIndex];
+        if (!field) return;
+
+        if (field.type === "boolean") {
+            setEditConfig(prev => ({ 
+              ...prev, 
+              [field.key]: !prev[field.key as keyof Config] 
+            }));
+        } else if (field.type === "select" && field.options) {
+             const currentVal = editConfig[field.key as keyof Config] as string;
+             const nextIndex = (field.options.indexOf(currentVal) + 1) % field.options.length;
+             setEditConfig(prev => ({ 
+               ...prev, 
+               [field.key]: field.options![nextIndex] 
+             }));
+        } else {
+            setIsEditing(true);
+        }
     } else if (input === "s") {
       onSave(editConfig);
     } else if (key.escape) {
       onCancel();
     }
   });
+  
+  const currentField = fields[focusIndex];
 
   return (
     <Box flexDirection="column">
       <Box marginBottom={1}>
         <Text bold>
-          ⚙️ 配置设置 (按 S 保存, Esc 取消)
+          ⚙️ 配置设置 (按 Enter 编辑/切换, S 保存, Esc 取消)
         </Text>
       </Box>
-      {fields.map((field, index) => (
-        <Box key={field.key}>
-          <Text color={index === focusIndex ? "cyan" : undefined}>
-            {index === focusIndex ? "▶ " : "  "}
-            {field.label}: {field.value}
-          </Text>
-        </Box>
-      ))}
-      <Box marginTop={1}>
-        <Text dimColor>提示: 完整配置请编辑 marker-cleaner.json 文件</Text>
-      </Box>
+      
+      {fields.map((field, index) => {
+        const isFocused = index === focusIndex;
+        const value = editConfig[field.key];
+        let displayValue = String(value);
+        if (field.key === "apiKey" && value && !isEditing) {
+            displayValue = "********";
+        }
+        if (field.key === "baseUrl" && !value) {
+            displayValue = "(默认)";
+        }
+        
+        return (
+            <Box key={field.key}>
+              <Text color={isFocused ? "cyan" : undefined}>
+                {isFocused ? "▶ " : "  "}
+                {field.label}:{" "}
+              </Text>
+              
+              {isFocused && isEditing ? (
+                  <TextInput 
+                    value={String(value ?? "")}
+                    onChange={(val) => {
+                         if (field.key === "previewCount") {
+                             setEditConfig(prev => ({...prev, [field.key]: parseInt(val) || 0 }));
+                         } else {
+                             setEditConfig(prev => ({...prev, [field.key]: val }));
+                         }
+                    }}
+                    onSubmit={() => setIsEditing(false)}
+                  />
+              ) : (
+                  <Text color={isFocused ? "cyan" : undefined}>{displayValue}</Text>
+              )}
+            </Box>
+        );
+      })}
     </Box>
   );
 };
