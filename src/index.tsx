@@ -144,18 +144,34 @@ const App: React.FC = () => {
       )}
 
       {/* Missing Configuration Warning */}
-      {screen === "menu" && ((!config.apiKey && config.provider !== "antigravity") || (config.provider === "antigravity" && !loadToken())) && (
-        <Box marginBottom={1} borderStyle="round" borderColor="red" flexDirection="column" paddingX={1}>
-          <Text color="red" bold>⚠️  服务未就绪</Text>
-          {config.provider === "antigravity" ? (
-              <Text color="red">请进入 "⚙️  配置设置" 按 'L' 键登录 Antigravity 账号。</Text>
-          ) : (
-              <>
-                <Text color="red">请进入 "⚙️  配置设置" 输入 API Key。</Text>
-                <Text color="red" dimColor>提示: 您也可以切换 Provider 为 "antigravity" 使用集成登录。</Text>
-              </>
-          )}
-        </Box>
+      {screen === "menu" && (
+        (() => {
+          const hasToken = !!loadToken();
+          const needsGoogleKey = !config.apiKey && config.provider === "google";
+          const needsOpenAIKey = !config.apiKey && config.provider === "openai";
+          const needsAntigravityLogin = config.provider === "antigravity" && !hasToken;
+
+          if (needsGoogleKey || needsOpenAIKey || needsAntigravityLogin) {
+            return (
+              <Box marginBottom={1} borderStyle="round" borderColor="red" flexDirection="column" paddingX={1}>
+                <Text color="red" bold>⚠️  服务未就绪</Text>
+                {needsAntigravityLogin ? (
+                  <Text color="red">请进入 "⚙️  配置设置" 按 'L' 键登录 Antigravity 账号。</Text>
+                ) : (
+                  <>
+                    <Text color="red">当前 {config.provider} 未配置 API Key。</Text>
+                    {hasToken ? (
+                      <Text color="green" bold>💡 检测到您已登录 Antigravity，请在配置中切换 Provider 即可直接使用！</Text>
+                    ) : (
+                      <Text color="red" dimColor>提示: 您也可以切换 Provider 为 "antigravity" 使用集成登录。</Text>
+                    )}
+                  </>
+                )}
+              </Box>
+            );
+          }
+          return null;
+        })()
       )}
 
       {/* Main Content */}
@@ -249,7 +265,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
   const fields: ConfigField[] = [
     { key: "provider", label: "Provider", type: "select", options: ["google", "openai", "antigravity"] },
     { key: "apiKey", label: "API Key", type: "password" },
-    { key: "baseUrl", label: "Base URL", type: "text" },
+    { key: "baseUrl", label: "代理地址", type: "text" },
     { key: "modelName", label: "模型名称", type: "text" },
     { key: "inputDir", label: "输入目录", type: "text" },
     { key: "outputDir", label: "输出目录", type: "text" },
@@ -341,7 +357,24 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
             displayValue = "********";
         }
         if (field.key === "baseUrl" && !value) {
-            displayValue = "(默认)";
+            if (editConfig.provider === "openai") {
+                displayValue = "(必填，除非使用官方 API)";
+            } else if (editConfig.provider === "google") {
+                displayValue = "(可选，仅用于 API 代理)";
+            } else {
+                displayValue = "(默认)";
+            }
+        }
+        if (field.key === "modelName" && !value) {
+            if (editConfig.provider === "google") {
+                displayValue = "(例: gemini-2.0-flash-exp)";
+            } else if (editConfig.provider === "openai") {
+                displayValue = "(例: gpt-4o)";
+            } else if (editConfig.provider === "antigravity") {
+                displayValue = "(例: nano-banana-pro)";
+            } else {
+                displayValue = "(未设置)";
+            }
         }
         
         let valComponent;
