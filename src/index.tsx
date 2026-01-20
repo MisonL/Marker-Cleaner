@@ -94,7 +94,7 @@ const App: React.FC = () => {
   };
 
   useInput((input, key) => {
-    if (key.escape) {
+    if (key.escape || input.toLowerCase() === "q") {
       if (screen !== "menu") {
         setScreen("menu");
       } else {
