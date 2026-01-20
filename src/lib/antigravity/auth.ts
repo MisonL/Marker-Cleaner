@@ -4,9 +4,9 @@ import open from "open";
 import { writeFileSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
 
+import { CLIENT_ID, CLIENT_SECRET } from "./constants";
+
 // ============ Constants ============
-const CLIENT_ID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
-const CLIENT_SECRET = "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";
 const REDIRECT_URI = "http://localhost:51121/oauth-callback";
 const SCOPES = [
   "https://www.googleapis.com/auth/cloud-platform",

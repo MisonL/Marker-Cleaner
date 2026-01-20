@@ -3,4 +3,6 @@ node_modules/
 .env
 progress.json
 debug.log
+marker-cleaner.json
+antigravity_token.json
 reference/
