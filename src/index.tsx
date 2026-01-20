@@ -147,7 +147,7 @@ const App: React.FC = () => {
       {screen === "menu" && (
         (() => {
           const hasToken = !!loadToken();
-          const needsGoogleKey = !config.apiKey && config.provider === "google";
+          const needsGoogleKey = !config.apiKey && config.provider === "google gemini api (需要tier1+层级)";
           const needsOpenAIKey = !config.apiKey && config.provider === "openai";
           const needsAntigravityLogin = config.provider === "antigravity" && !hasToken;
 
@@ -263,7 +263,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
   const [loginMsg, setLoginMsg] = useState("");
 
   const fields: ConfigField[] = [
-    { key: "provider", label: "Provider", type: "select", options: ["google", "openai", "antigravity"] },
+    { key: "provider", label: "Provider", type: "select", options: ["openai", "antigravity", "google gemini api (需要tier1+层级)"] },
     { key: "apiKey", label: "API Key", type: "password" },
     { key: "baseUrl", label: "代理地址", type: "text" },
     { key: "modelName", label: "模型名称", type: "text" },
@@ -393,14 +393,14 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
         if (field.key === "baseUrl" && !value) {
             if (editConfig.provider === "openai") {
                 displayValue = "(必填，除非使用官方 API)";
-            } else if (editConfig.provider === "google") {
+            } else if (editConfig.provider === "google gemini api (需要tier1+层级)") {
                 displayValue = "(可选，仅用于 API 代理)";
             } else {
                 displayValue = "(默认)";
             }
         }
         if (field.key === "modelName" && !value) {
-            if (editConfig.provider === "google") {
+            if (editConfig.provider === "google gemini api (需要tier1+层级)") {
                 displayValue = "(例: gemini-2.0-flash-exp)";
             } else if (editConfig.provider === "openai") {
                 displayValue = "(例: gpt-4o)";

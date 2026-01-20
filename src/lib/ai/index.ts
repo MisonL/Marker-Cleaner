@@ -6,7 +6,7 @@ import { AntigravityProvider } from "../antigravity/provider";
 
 export function createProvider(config: Config): AIProvider {
   switch (config.provider) {
-    case "google":
+    case "google gemini api (需要tier1+层级)":
       return new GoogleProvider(config);
     case "openai":
       return new OpenAIProvider(config);

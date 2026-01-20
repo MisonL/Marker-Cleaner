@@ -36,18 +36,18 @@ export const ConfigSchema = z.object({
   preserveStructure: z.boolean().default(true),
 
   // Provider 配置
-  provider: z.enum(["google", "openai", "antigravity"]).default("google"),
+  provider: z.enum(["openai", "antigravity", "google gemini api (需要tier1+层级)"]).default("antigravity"),
   apiKey: z.string().default(""),
   baseUrl: z.string().optional(),
-  modelName: z.string().default("gemini-2.5-flash-image"),
+  modelName: z.string().default("nano-banana-pro"),
 
   // 各 Provider 独立的档案袋配置
   providerSettings: z.object({
-    google: ProviderSettingsSchema,
+    "google gemini api (需要tier1+层级)": ProviderSettingsSchema,
     openai: ProviderSettingsSchema,
     antigravity: ProviderSettingsSchema,
   }).default({
-    google: { apiKey: "", modelName: "gemini-2.5-flash-image" },
+    "google gemini api (需要tier1+层级)": { apiKey: "", modelName: "gemini-2.5-flash-image" },
     openai: { apiKey: "", modelName: "gpt-4o" },
     antigravity: { apiKey: "", modelName: "nano-banana-pro" },
   }),
