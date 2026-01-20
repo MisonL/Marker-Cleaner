@@ -143,11 +143,18 @@ const App: React.FC = () => {
         </Box>
       )}
 
-      {/* Missing API Key Warning */}
-      {!config.apiKey && screen === "menu" && (
+      {/* Missing Configuration Warning */}
+      {screen === "menu" && ((!config.apiKey && config.provider !== "antigravity") || (config.provider === "antigravity" && !loadToken())) && (
         <Box marginBottom={1} borderStyle="round" borderColor="red" flexDirection="column" paddingX={1}>
-          <Text color="red" bold>⚠️  未检测到 API Key</Text>
-          <Text color="red">请选择 "⚙️  配置设置" 并输入您的 Gemini API Key 才能开始使用。</Text>
+          <Text color="red" bold>⚠️  服务未就绪</Text>
+          {config.provider === "antigravity" ? (
+              <Text color="red">请进入 "⚙️  配置设置" 按 'L' 键登录 Antigravity 账号。</Text>
+          ) : (
+              <>
+                <Text color="red">请进入 "⚙️  配置设置" 输入 API Key。</Text>
+                <Text color="red" dimColor>提示: 您也可以切换 Provider 为 "antigravity" 使用集成登录。</Text>
+              </>
+          )}
         </Box>
       )}
 
@@ -210,8 +217,8 @@ const App: React.FC = () => {
       )}
 
       {/* Footer */}
-      <Box marginTop={2}>
-        <Text dimColor>按 Esc 返回 | 按 ↑↓ 导航 | 按 Enter 确认</Text>
+      <Box marginTop={1}>
+        <Text dimColor>按 ↑↓ 导航 | 按 Enter 选择 | 按 Q 退出</Text>
       </Box>
     </Box>
   );
@@ -337,14 +344,28 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
             displayValue = "(默认)";
         }
         
-        return (
-            <Box key={field.key}>
-              <Text color={isFocused ? "cyan" : undefined}>
-                {isFocused ? "▶ " : "  "}
-                {field.label}:{" "}
-              </Text>
-              
-              {isFocused && isEditing ? (
+        let valComponent;
+        if (field.type === "password") {
+            if (isEditing && isFocused) {
+               valComponent = (
+                <TextInput
+                  value={String(editConfig[field.key])}
+                  onChange={(val) => setEditConfig((prev) => ({ ...prev, [field.key]: val }))}
+                  mask="*"
+                />
+               );
+            } else {
+               valComponent = (
+                <Text color="yellow">
+                  {editConfig[field.key] ? "*".repeat(String(editConfig[field.key]).length) : (editConfig.provider === "antigravity" ? "(通过‘L’键登录自动获取)" : "(未设置)")}
+                </Text>
+               );
+            }
+        } else if (field.type === "select") {
+            valComponent = <Text color={isFocused ? "cyan" : undefined}>{displayValue}</Text>;
+        } else {
+            if (isFocused && isEditing) {
+                valComponent = (
                   <TextInput 
                     value={String(value ?? "")}
                     onChange={(val) => {
@@ -356,12 +377,28 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
                     }}
                     onSubmit={() => setIsEditing(false)}
                   />
-              ) : (
-                  <Text color={isFocused ? "cyan" : undefined}>{displayValue}</Text>
-              )}
+                );
+            } else {
+                valComponent = <Text color={isFocused ? "cyan" : undefined}>{displayValue}</Text>;
+            }
+        }
+        
+        return (
+            <Box key={field.key}>
+              <Text color={isFocused ? "cyan" : undefined}>
+                {isFocused ? "▶ " : "  "}
+                {field.label}:{" "}
+              </Text>
+              {valComponent}
             </Box>
         );
       })}
+
+      {/* Footer */}
+      <Box marginTop={2} flexDirection="column">
+        <Text dimColor>按 Esc 返回 | 按 ↑↓ 导航 | 按 Enter 确认/编辑</Text>
+        <Text dimColor>按 S 保存配置{editConfig.provider === "antigravity" ? " | 按 L 登录 Antigravity" : ""}</Text>
+      </Box>
     </Box>
   );
 };
