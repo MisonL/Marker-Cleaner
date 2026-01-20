@@ -301,9 +301,31 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
              if (typeof currentVal === "string") {
                  const options = field.options;
                  const nextIndex = (options.indexOf(currentVal) + 1) % options.length;
-                 const nextVal = options[nextIndex];
+                 const nextVal = options[nextIndex] as Config["provider"];
                  if (nextVal !== undefined) {
-                     setEditConfig(prev => ({ ...prev, [configKey]: nextVal }));
+                     // 切换 Provider 时，保存当前 Provider 的配置到档案袋，并加载新 Provider 的档案袋配置
+                     if (configKey === "provider") {
+                         const prevProvider = currentVal as Config["provider"];
+                         const updatedSettings = {
+                             ...editConfig.providerSettings,
+                             [prevProvider]: {
+                                 apiKey: editConfig.apiKey,
+                                 baseUrl: editConfig.baseUrl,
+                                 modelName: editConfig.modelName
+                             }
+                         };
+                         const nextSettings = updatedSettings[nextVal];
+                         setEditConfig(prev => ({ 
+                             ...prev, 
+                             provider: nextVal,
+                             apiKey: nextSettings.apiKey || "",
+                             baseUrl: nextSettings.baseUrl || "",
+                             modelName: nextSettings.modelName || "",
+                             providerSettings: updatedSettings
+                         }));
+                     } else {
+                         setEditConfig(prev => ({ ...prev, [configKey]: nextVal }));
+                     }
                  }
              }
         } else {
@@ -320,7 +342,19 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
                 setLoginMsg("❌ 登录失败: " + err.message);
             });
     } else if (input === "s") {
-      onSave(editConfig);
+      // 保存前确保当前 Provider 的最新配置已同步回档案袋
+      const finalConfig = {
+          ...editConfig,
+          providerSettings: {
+              ...editConfig.providerSettings,
+              [editConfig.provider]: {
+                  apiKey: editConfig.apiKey,
+                  baseUrl: editConfig.baseUrl,
+                  modelName: editConfig.modelName
+              }
+          }
+      };
+      onSave(finalConfig);
     } else if (key.escape) {
       onCancel();
     }

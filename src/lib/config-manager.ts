@@ -22,6 +22,12 @@ const PromptsSchema = z.object({
     ),
 });
 
+const ProviderSettingsSchema = z.object({
+  apiKey: z.string().default(""),
+  baseUrl: z.string().optional(),
+  modelName: z.string(),
+});
+
 export const ConfigSchema = z.object({
   // 目录配置
   inputDir: z.string().default("./input"),
@@ -35,11 +41,22 @@ export const ConfigSchema = z.object({
   baseUrl: z.string().optional(),
   modelName: z.string().default("gemini-2.5-flash-image"),
 
+  // 各 Provider 独立的档案袋配置
+  providerSettings: z.object({
+    google: ProviderSettingsSchema,
+    openai: ProviderSettingsSchema,
+    antigravity: ProviderSettingsSchema,
+  }).default({
+    google: { apiKey: "", modelName: "gemini-2.5-flash-image" },
+    openai: { apiKey: "", modelName: "gpt-4o" },
+    antigravity: { apiKey: "", modelName: "nano-banana-pro" },
+  }),
+
   // Prompt 配置
-  prompts: PromptsSchema.default(() => ({
+  prompts: PromptsSchema.default({
     edit: "请移除图中所有手动添加的彩色矩形标记框（通常是红色、橙色或黄色的细线边框），保持背景内容完整不变。直接返回处理后的图片。",
     detect: "请识别图中所有人工添加的彩色矩形标记框（通常是红色、橙色或黄色的细线边框），返回它们的边界框坐标。格式：JSON 数组 [{ymin, xmin, ymax, xmax}]，坐标为相对值(0-1)。",
-  })),
+  }),
 
   // 输出配置
   outputFormat: z.enum(["original", "png", "jpg", "webp"]).default("original"),
@@ -49,11 +66,11 @@ export const ConfigSchema = z.object({
   debugLog: z.boolean().default(false),
 
   // 定价配置
-  pricing: PricingSchema.default(() => ({
+  pricing: PricingSchema.default({
     inputTokenPer1M: 0.15,
     outputTokenPer1M: 0.60,
     imageOutput: 0.039,
-  })),
+  }),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
