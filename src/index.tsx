@@ -142,6 +142,14 @@ const App: React.FC = () => {
         </Box>
       )}
 
+      {/* Missing API Key Warning */}
+      {!config.apiKey && screen === "menu" && (
+        <Box marginBottom={1} borderStyle="round" borderColor="red" flexDirection="column" paddingX={1}>
+          <Text color="red" bold>⚠️  未检测到 API Key</Text>
+          <Text color="red">请选择 "⚙️  配置设置" 并输入您的 Gemini API Key 才能开始使用。</Text>
+        </Box>
+      )}
+
       {/* Main Content */}
       {screen === "menu" && (
         <Box flexDirection="column">
