@@ -5,6 +5,34 @@ import { randomUUID } from "crypto";
 
 const ENDPOINT = "https://daily-cloudcode-pa.sandbox.googleapis.com";
 
+interface AntigravityContentPart {
+    text?: string;
+    inlineData?: {
+        mimeType: string;
+        data: string;
+    };
+}
+
+interface AntigravityCandidate {
+    content: {
+        parts: AntigravityContentPart[];
+    };
+    finishReason?: string;
+}
+
+interface AntigravityUsageMetadata {
+    promptTokenCount: number;
+    candidatesTokenCount: number;
+    totalTokenCount: number;
+}
+
+interface AntigravityResponsePayload {
+    response: {
+        candidates: AntigravityCandidate[];
+        usageMetadata: AntigravityUsageMetadata;
+    };
+}
+
 export class AntigravityProvider implements AIProvider {
   readonly name = "Antigravity";
   readonly supportsImageEdit: boolean;
@@ -68,7 +96,7 @@ export class AntigravityProvider implements AIProvider {
         throw new Error(`Antigravity API Error ${response.status}: ${await response.text()}`);
       }
 
-      const result = await response.json();
+      const result = await response.json() as AntigravityResponsePayload;
       return this.parseResponse(result);
 
     } catch (error) {
@@ -79,7 +107,7 @@ export class AntigravityProvider implements AIProvider {
     }
   }
 
-  private parseResponse(response: any): ProcessResult {
+  private parseResponse(response: AntigravityResponsePayload): ProcessResult {
     const candidate = response.response?.candidates?.[0];
     if (!candidate?.content?.parts) {
       return { success: false, error: "No response content" };

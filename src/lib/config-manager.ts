@@ -67,6 +67,9 @@ export function getDefaultConfig(): Config {
   return ConfigSchema.parse({});
 }
 
+/**
+ * 加载配置，如果不存在则创建默认配置
+ */
 export function loadConfig(cwd: string = process.cwd()): Config {
   const configPath = join(cwd, CONFIG_FILE);
 
@@ -88,11 +91,17 @@ export function loadConfig(cwd: string = process.cwd()): Config {
   }
 }
 
+/**
+ * 保存配置到文件
+ */
 export function saveConfig(config: Config, cwd: string = process.cwd()): void {
   const configPath = join(cwd, CONFIG_FILE);
   writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
 }
 
+/**
+ * 恢复默认配置
+ */
 export function resetConfig(cwd: string = process.cwd()): Config {
   const defaultConfig = getDefaultConfig();
   saveConfig(defaultConfig, cwd);
@@ -111,6 +120,9 @@ export interface Progress {
   lastUpdated: string;
 }
 
+/**
+ * 加载处理进度
+ */
 export function loadProgress(cwd: string = process.cwd()): Progress {
   const progressPath = join(cwd, PROGRESS_FILE);
 
@@ -140,6 +152,9 @@ export function loadProgress(cwd: string = process.cwd()): Progress {
   }
 }
 
+/**
+ * 保存进度
+ */
 export function saveProgress(
   progress: Progress,
   cwd: string = process.cwd(),
@@ -149,6 +164,9 @@ export function saveProgress(
   writeFileSync(progressPath, JSON.stringify(progress, null, 2), "utf-8");
 }
 
+/**
+ * 清除进度
+ */
 export function clearProgress(cwd: string = process.cwd()): void {
   const progressPath = join(cwd, PROGRESS_FILE);
   if (existsSync(progressPath)) {
