@@ -108,6 +108,16 @@ export function loadConfig(cwd: string = process.cwd()): Config {
     
     // 解析失败，尝试合并默认值并再次安全解析
     console.warn(`⚠️ 配置文件验证失败，正在尝试修复部分非法字段...`);
+    
+    // 向后兼容处理
+    if (parsed.provider === "google gemini api (需要tier1+层级)") {
+      parsed.provider = "google";
+    }
+    if (parsed.providerSettings?.["google gemini api (需要tier1+层级)"]) {
+      parsed.providerSettings.google = parsed.providerSettings["google gemini api (需要tier1+层级)"];
+      delete parsed.providerSettings["google gemini api (需要tier1+层级)"];
+    }
+
     const defaultConfig = getDefaultConfig();
     const merged = { ...defaultConfig, ...parsed };
     // 嵌套项合并

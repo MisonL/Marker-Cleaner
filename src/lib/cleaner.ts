@@ -64,6 +64,7 @@ export async function cleanMarkersLocal(
       channels: 4,
     },
   })
+    .withMetadata() // 尽量保留元数据
     .png()
     .toBuffer();
 }
@@ -147,20 +148,16 @@ export async function convertFormat(
   format: "original" | "png" | "jpg" | "webp",
   originalExt?: string
 ): Promise<Buffer> {
-  let targetFormat = format;
+  const ext = originalExt ? originalExt.toLowerCase() : "";
   
-  if (format === "original") {
-    if (!originalExt) return imageBuffer;
-    const ext = originalExt.toLowerCase();
-    if (ext === ".jpg" || ext === ".jpeg") targetFormat = "jpg";
-    else if (ext === ".png") targetFormat = "png";
-    else if (ext === ".webp") targetFormat = "webp";
-    else return imageBuffer; // 无法识别的扩展名，保持现状
+  // 核心优化：如果是原始输出，且扩展名匹配，直接直出 Buffer，跳过 Sharp 以保留 100% 元数据
+  if (format === "original" || !format) {
+      return imageBuffer;
   }
 
-  const image = sharp(imageBuffer);
+  const image = sharp(imageBuffer).withMetadata();
 
-  switch (targetFormat) {
+  switch (format) {
     case "png":
       return image.png().toBuffer();
     case "jpg":

@@ -113,7 +113,7 @@ export class BatchProcessor {
       this.logger.info(`[${current}/${total}] 处理: ${task.relativePath}`);
 
       try {
-        await this.processOne(task);
+        await this.processOne(task, previewOnly);
         if (!previewOnly) {
           this.progress.processedFiles.push(task.relativePath);
           saveProgress(this.progress);
@@ -124,10 +124,12 @@ export class BatchProcessor {
     }
 
     this.logger.info(`✅ 处理完成: ${current}/${total}`);
-    this.logger.info(`💰 总成本: $${this.progress.totalCost.toFixed(4)}`);
+    if (!previewOnly) {
+      this.logger.info(`💰 总成本: $${this.progress.totalCost.toFixed(4)}`);
+    }
   }
 
-  private async processOne(task: BatchTask): Promise<void> {
+  private async processOne(task: BatchTask, previewOnly = false): Promise<void> {
     const inputBuffer = readFileSync(task.absoluteInputPath);
 
     // 选择 Prompt
@@ -139,15 +141,21 @@ export class BatchProcessor {
     const result = await this.provider.processImage(inputBuffer, prompt);
 
     // 更新 Token 统计
-    if (result.inputTokens) {
-      this.progress.totalInputTokens += result.inputTokens;
+    if (result.inputTokens || result.outputTokens) {
+        if (!previewOnly) {
+            if (result.inputTokens) this.progress.totalInputTokens += result.inputTokens;
+            if (result.outputTokens) this.progress.totalOutputTokens += result.outputTokens;
+            this.updateCost();
+        } else {
+            // 预览模式：仅触发 UI 通知，不修改正式进度
+            const pricing = this.config.pricing;
+            const tempInputCost = ((result.inputTokens || 0) / 1_000_000) * pricing.inputTokenPer1M;
+            const tempOutputCost = ((result.outputTokens || 0) / 1_000_000) * pricing.outputTokenPer1M;
+            const tempImageCost = result.outputBuffer ? pricing.imageOutput : 0;
+            // 通知预览成本（可选特性，这里先通过 logger 输出）
+            this.logger.debug(`[预览] 本次消耗: $${(tempInputCost + tempOutputCost + tempImageCost).toFixed(4)}`);
+        }
     }
-    if (result.outputTokens) {
-      this.progress.totalOutputTokens += result.outputTokens;
-    }
-
-    // 计算成本
-    this.updateCost();
 
     if (!result.success) {
       throw new Error(result.error ?? "Unknown error");
@@ -158,7 +166,7 @@ export class BatchProcessor {
     if (result.outputBuffer) {
       // Pro 模式：AI 直接返回图片
       outputBuffer = result.outputBuffer;
-      this.progress.totalImageOutputs++; // 追踪图片生成次数
+      if (!previewOnly) this.progress.totalImageOutputs++; // 追踪图片生成次数
     } else if (result.boxes && result.boxes.length > 0) {
       // Nano 模式：本地修复
       this.logger.debug(`检测到 ${result.boxes.length} 个标记区域，执行本地修复`);
