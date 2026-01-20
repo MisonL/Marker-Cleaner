@@ -7,6 +7,7 @@ import { loadConfig, saveConfig, resetConfig, type Config } from "./lib/config-m
 import { createProvider } from "./lib/ai";
 import { BatchProcessor } from "./lib/batch-processor";
 import { createLogger } from "./lib/logger";
+import { loginWithAntigravity, loadToken } from "./lib/antigravity/auth";
 
 type Screen = "menu" | "config" | "process" | "preview" | "done";
 
@@ -217,6 +218,7 @@ const App: React.FC = () => {
 };
 
 // 简化的配置界面
+
 interface ConfigScreenProps {
   config: Config;
   onSave: (config: Config) => void;
@@ -227,11 +229,13 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
   const [editConfig, setEditConfig] = useState(config);
   const [focusIndex, setFocusIndex] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
+  const [authState, setAuthState] = useState(loadToken());
+  const [loginMsg, setLoginMsg] = useState("");
 
   const fields: { key: keyof Config; label: string; type: "text" | "password" | "boolean" | "select"; options?: string[] }[] = [
     { key: "apiKey", label: "API Key", type: "password" },
     { key: "baseUrl", label: "Base URL", type: "text" },
-    { key: "provider", label: "Provider", type: "select", options: ["google", "openai"] },
+    { key: "provider", label: "Provider", type: "select", options: ["google", "openai", "antigravity"] },
     { key: "modelName", label: "模型名称", type: "text" },
     { key: "inputDir", label: "输入目录", type: "text" },
     { key: "outputDir", label: "输出目录", type: "text" },
@@ -272,6 +276,16 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
         } else {
             setIsEditing(true);
         }
+    } else if (input === "l" && editConfig.provider === "antigravity") {
+        setLoginMsg("⌛️ 正在打开浏览器登录 Auth...");
+        loginWithAntigravity()
+            .then(token => {
+                setAuthState(token);
+                setLoginMsg("✅ 登录成功! (" + token.email + ")");
+            })
+            .catch(err => {
+                setLoginMsg("❌ 登录失败: " + err.message);
+            });
     } else if (input === "s") {
       onSave(editConfig);
     } else if (key.escape) {
@@ -285,10 +299,23 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
     <Box flexDirection="column">
       <Box marginBottom={1}>
         <Text bold>
-          ⚙️ 配置设置 (按 Enter 编辑/切换, S 保存, Esc 取消)
+          ⚙️ 配置设置 (Enter 编辑/切换, S 保存, Esc 取消)
         </Text>
       </Box>
       
+      {editConfig.provider === "antigravity" && (
+          <Box borderStyle="round" borderColor={authState ? "green" : "red"} flexDirection="column" marginBottom={1} paddingX={1}>
+            <Text bold color={authState ? "green" : "red"}>
+                Antigravity Auth Status: {authState ? "已登录" : "未登录"}
+            </Text>
+            {authState?.email && <Text>Email: {authState.email}</Text>}
+            {authState?.project_id && <Text>Project: {authState.project_id}</Text>}
+            <Box marginTop={1}>
+                <Text>{loginMsg || (authState ? "按 'L' 重新登录" : "👉 按 'L' 键进行浏览器登录")}</Text>
+            </Box>
+          </Box>
+      )}
+
       {fields.map((field, index) => {
         const isFocused = index === focusIndex;
         const value = editConfig[field.key];

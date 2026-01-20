@@ -30,7 +30,7 @@ export const ConfigSchema = z.object({
   preserveStructure: z.boolean().default(true),
 
   // Provider 配置
-  provider: z.enum(["google", "openai"]).default("google"),
+  provider: z.enum(["google", "openai", "antigravity"]).default("google"),
   apiKey: z.string().default(""),
   baseUrl: z.string().optional(),
   modelName: z.string().default("gemini-2.5-flash-image"),
