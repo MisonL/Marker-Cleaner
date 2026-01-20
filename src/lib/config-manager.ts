@@ -36,18 +36,18 @@ export const ConfigSchema = z.object({
   preserveStructure: z.boolean().default(true),
 
   // Provider 配置
-  provider: z.enum(["openai", "antigravity", "google gemini api (需要tier1+层级)"]).default("antigravity"),
+  provider: z.enum(["google", "openai", "antigravity"]).default("antigravity"),
   apiKey: z.string().default(""),
   baseUrl: z.string().optional(),
   modelName: z.string().default("nano-banana-pro"),
 
   // 各 Provider 独立的档案袋配置
   providerSettings: z.object({
-    "google gemini api (需要tier1+层级)": ProviderSettingsSchema,
+    google: ProviderSettingsSchema,
     openai: ProviderSettingsSchema,
     antigravity: ProviderSettingsSchema,
   }).default({
-    "google gemini api (需要tier1+层级)": { apiKey: "", modelName: "gemini-2.5-flash-image" },
+    google: { apiKey: "", modelName: "gemini-2.5-flash-image" },
     openai: { apiKey: "", modelName: "gpt-4o" },
     antigravity: { apiKey: "", modelName: "nano-banana-pro" },
   }),
@@ -101,9 +101,29 @@ export function loadConfig(cwd: string = process.cwd()): Config {
   try {
     const raw = readFileSync(configPath, "utf-8");
     const parsed = JSON.parse(raw);
-    return ConfigSchema.parse(parsed);
+    const result = ConfigSchema.safeParse(parsed);
+    if (result.success) {
+      return result.data;
+    }
+    
+    // 解析失败，尝试合并默认值并再次安全解析
+    console.warn(`⚠️ 配置文件验证失败，正在尝试修复部分非法字段...`);
+    const defaultConfig = getDefaultConfig();
+    const merged = { ...defaultConfig, ...parsed };
+    // 嵌套项合并
+    if (parsed.prompts) merged.prompts = { ...defaultConfig.prompts, ...parsed.prompts };
+    if (parsed.pricing) merged.pricing = { ...defaultConfig.pricing, ...parsed.pricing };
+    if (parsed.providerSettings) merged.providerSettings = { ...defaultConfig.providerSettings, ...parsed.providerSettings };
+
+    const retryResult = ConfigSchema.safeParse(merged);
+    if (retryResult.success) {
+      return retryResult.data;
+    }
+    
+    console.error(`⚠️ 配置修复失败: ${retryResult.error.message}. 使用默认配置。`);
+    return defaultConfig;
   } catch (error) {
-    console.error(`⚠️ 配置文件解析失败，使用默认配置`);
+    console.error(`⚠️ 配置文件无法读取或格式错误，使用默认配置`);
     return getDefaultConfig();
   }
 }

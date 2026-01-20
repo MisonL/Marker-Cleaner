@@ -144,15 +144,23 @@ function getNeighborAverage(
  */
 export async function convertFormat(
   imageBuffer: Buffer,
-  format: "original" | "png" | "jpg" | "webp"
+  format: "original" | "png" | "jpg" | "webp",
+  originalExt?: string
 ): Promise<Buffer> {
+  let targetFormat = format;
+  
   if (format === "original") {
-    return imageBuffer;
+    if (!originalExt) return imageBuffer;
+    const ext = originalExt.toLowerCase();
+    if (ext === ".jpg" || ext === ".jpeg") targetFormat = "jpg";
+    else if (ext === ".png") targetFormat = "png";
+    else if (ext === ".webp") targetFormat = "webp";
+    else return imageBuffer; // 无法识别的扩展名，保持现状
   }
 
   const image = sharp(imageBuffer);
 
-  switch (format) {
+  switch (targetFormat) {
     case "png":
       return image.png().toBuffer();
     case "jpg":

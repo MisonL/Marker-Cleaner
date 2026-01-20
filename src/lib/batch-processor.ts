@@ -114,8 +114,10 @@ export class BatchProcessor {
 
       try {
         await this.processOne(task);
-        this.progress.processedFiles.push(task.relativePath);
-        saveProgress(this.progress);
+        if (!previewOnly) {
+          this.progress.processedFiles.push(task.relativePath);
+          saveProgress(this.progress);
+        }
       } catch (error) {
         this.logger.error(`处理失败: ${task.relativePath} - ${error}`);
       }
@@ -168,7 +170,7 @@ export class BatchProcessor {
     }
 
     // 转换格式
-    outputBuffer = await convertFormat(outputBuffer, this.config.outputFormat);
+    outputBuffer = await convertFormat(outputBuffer, this.config.outputFormat, extname(task.relativePath));
 
     // 确保输出目录存在
     const outputDir = dirname(task.absoluteOutputPath);

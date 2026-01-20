@@ -59,8 +59,17 @@ const App: React.FC = () => {
 
   const runProcess = async (previewOnly: boolean) => {
     try {
-      if (!config.apiKey) {
+      const hasToken = !!loadToken();
+      const isAntigravity = config.provider === "antigravity";
+      
+      if (!isAntigravity && !config.apiKey) {
         setError("❌ 请先配置 API Key");
+        setScreen("menu");
+        return;
+      }
+      
+      if (isAntigravity && !hasToken) {
+        setError("❌ 请先登录 Antigravity 账号 (配置页按 'L')");
         setScreen("menu");
         return;
       }
@@ -147,11 +156,12 @@ const App: React.FC = () => {
       {screen === "menu" && (
         (() => {
           const hasToken = !!loadToken();
-          const needsGoogleKey = !config.apiKey && config.provider === "google gemini api (需要tier1+层级)";
+          const needsGoogleKey = !config.apiKey && config.provider === "google";
           const needsOpenAIKey = !config.apiKey && config.provider === "openai";
           const needsAntigravityLogin = config.provider === "antigravity" && !hasToken;
 
           if (needsGoogleKey || needsOpenAIKey || needsAntigravityLogin) {
+            const providerLabel = config.provider === "google" ? "Google Gemini API" : config.provider;
             return (
               <Box marginBottom={1} borderStyle="round" borderColor="red" flexDirection="column" paddingX={1}>
                 <Text color="red" bold>⚠️  服务未就绪</Text>
@@ -159,7 +169,7 @@ const App: React.FC = () => {
                   <Text color="red">请进入 "⚙️  配置设置" 按 'L' 键登录 Antigravity 账号。</Text>
                 ) : (
                   <>
-                    <Text color="red">当前 {config.provider} 未配置 API Key。</Text>
+                    <Text color="red">当前 {providerLabel} 未配置 API Key。</Text>
                     {hasToken ? (
                       <Text color="green" bold>💡 检测到您已登录 Antigravity，请在配置中切换 Provider 即可直接使用！</Text>
                     ) : (
@@ -263,7 +273,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
   const [loginMsg, setLoginMsg] = useState("");
 
   const fields: ConfigField[] = [
-    { key: "provider", label: "Provider", type: "select", options: ["openai", "antigravity", "google gemini api (需要tier1+层级)"] },
+    { key: "provider", label: "Provider", type: "select", options: ["openai", "antigravity", "google"] },
     { key: "apiKey", label: "API Key", type: "password" },
     { key: "baseUrl", label: "代理地址", type: "text" },
     { key: "modelName", label: "模型名称", type: "text" },
@@ -387,20 +397,27 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
         const isFocused = index === focusIndex;
         const value = editConfig[field.key];
         let displayValue = String(value);
+
+        if (field.key === "provider") {
+            if (value === "google") displayValue = "Google Gemini API (需要tier1+层级)";
+            else if (value === "openai") displayValue = "OpenAI (需 GPT-4o)";
+            else if (value === "antigravity") displayValue = "Antigravity (集成登录)";
+        }
+
         if (field.key === "apiKey" && value && !isEditing) {
             displayValue = "********";
         }
         if (field.key === "baseUrl" && !value) {
             if (editConfig.provider === "openai") {
                 displayValue = "(必填，除非使用官方 API)";
-            } else if (editConfig.provider === "google gemini api (需要tier1+层级)") {
+            } else if (editConfig.provider === "google") {
                 displayValue = "(可选，仅用于 API 代理)";
             } else {
                 displayValue = "(默认)";
             }
         }
         if (field.key === "modelName" && !value) {
-            if (editConfig.provider === "google gemini api (需要tier1+层级)") {
+            if (editConfig.provider === "google") {
                 displayValue = "(例: gemini-2.0-flash-exp)";
             } else if (editConfig.provider === "openai") {
                 displayValue = "(例: gpt-4o)";
