@@ -5,6 +5,7 @@ import { writeFileSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
 
 import { CLIENT_ID, CLIENT_SECRET } from "./constants";
+import { getConfigDir } from "../config-manager";
 
 // ============ Constants ============
 const REDIRECT_URI = "http://localhost:51121/oauth-callback";
@@ -16,6 +17,10 @@ const SCOPES = [
   "https://www.googleapis.com/auth/experimentsandconfigs",
 ];
 const TOKEN_FILE = "antigravity_token.json";
+
+function getTokenFilePath(): string {
+  return join(getConfigDir(), TOKEN_FILE);
+}
 
 // ============ Types ============
 export interface TokenStore {
@@ -189,11 +194,11 @@ async function fetchProjectID(accessToken: string): Promise<string> {
 }
 
 export function saveToken(token: TokenStore) {
-  writeFileSync(join(process.cwd(), TOKEN_FILE), JSON.stringify(token, null, 2));
+  writeFileSync(getTokenFilePath(), JSON.stringify(token, null, 2));
 }
 
 export function loadToken(): TokenStore | null {
-  const path = join(process.cwd(), TOKEN_FILE);
+  const path = getTokenFilePath();
   if (!existsSync(path)) return null;
   try {
     return JSON.parse(readFileSync(path, "utf-8"));

@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
+import { homedir } from "os";
 
 // ============ Schema 定义 ============
 const PricingSchema = z.object({
@@ -79,6 +80,18 @@ export type Prompts = z.infer<typeof PromptsSchema>;
 
 // ============ 配置管理器 ============
 const CONFIG_FILE = "marker-cleaner.json";
+const CONFIG_DIR = ".marker-cleaner";
+
+/**
+ * 获取配置目录路径 (~/.marker-cleaner/)
+ */
+export function getConfigDir(): string {
+  const dir = join(homedir(), CONFIG_DIR);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+}
 
 export function getDefaultConfig(): Config {
   return ConfigSchema.parse({});
@@ -87,8 +100,8 @@ export function getDefaultConfig(): Config {
 /**
  * 加载配置，如果不存在则创建默认配置
  */
-export function loadConfig(cwd: string = process.cwd()): Config {
-  const configPath = join(cwd, CONFIG_FILE);
+export function loadConfig(): Config {
+  const configPath = join(getConfigDir(), CONFIG_FILE);
 
   if (!existsSync(configPath)) {
     // 配置文件不存在，创建默认配置
@@ -141,8 +154,8 @@ export function loadConfig(cwd: string = process.cwd()): Config {
 /**
  * 保存配置到文件
  */
-export function saveConfig(config: Config, cwd: string = process.cwd()): void {
-  const configPath = join(cwd, CONFIG_FILE);
+export function saveConfig(config: Config): void {
+  const configPath = join(getConfigDir(), CONFIG_FILE);
   writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
 }
 
