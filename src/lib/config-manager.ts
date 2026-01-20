@@ -101,15 +101,8 @@ export function loadConfig(cwd: string = process.cwd()): Config {
   try {
     const raw = readFileSync(configPath, "utf-8");
     const parsed = JSON.parse(raw);
-    const result = ConfigSchema.safeParse(parsed);
-    if (result.success) {
-      return result.data;
-    }
-    
-    // 解析失败，尝试合并默认值并再次安全解析
-    console.warn(`⚠️ 配置文件验证失败，正在尝试修复部分非法字段...`);
-    
-    // 向后兼容处理
+
+    // 向后兼容处理 - 必须在校验前执行
     if (parsed.provider === "google gemini api (需要tier1+层级)") {
       parsed.provider = "google";
     }
@@ -118,6 +111,13 @@ export function loadConfig(cwd: string = process.cwd()): Config {
       delete parsed.providerSettings["google gemini api (需要tier1+层级)"];
     }
 
+    const result = ConfigSchema.safeParse(parsed);
+    if (result.success) {
+      return result.data;
+    }
+    
+    // 解析失败，尝试合并默认值并再次安全解析
+    console.warn(`⚠️ 配置文件验证失败，正在尝试修复部分非法字段...`);
     const defaultConfig = getDefaultConfig();
     const merged = { ...defaultConfig, ...parsed };
     // 嵌套项合并

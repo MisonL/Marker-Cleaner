@@ -150,8 +150,23 @@ export async function convertFormat(
 ): Promise<Buffer> {
   const ext = originalExt ? originalExt.toLowerCase() : "";
   
-  // 核心优化：如果是原始输出，且扩展名匹配，直接直出 Buffer，跳过 Sharp 以保留 100% 元数据
+  // 核心逻辑：如果是原始输出
   if (format === "original" || !format) {
+      // 检查输入 Buffer 真实类型（前 8 位）
+      const header = imageBuffer.slice(0, 8).toString("hex");
+      const isPng = header.startsWith("89504e470d0a1a0a");
+
+      // 如果是本地修复产生的 PNG 缓存，但目标扩展名要求 JPG/WebP，则必须强制转码
+      if (isPng) {
+          if (ext === ".jpg" || ext === ".jpeg") {
+              return sharp(imageBuffer).withMetadata().jpeg({ quality: 90 }).toBuffer();
+          }
+          if (ext === ".webp") {
+              return sharp(imageBuffer).withMetadata().webp({ quality: 90 }).toBuffer();
+          }
+      }
+      
+      // 其他情况（已经是目标格式或无法识别），则执行零损耗直出
       return imageBuffer;
   }
 
