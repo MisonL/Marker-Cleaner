@@ -247,9 +247,9 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
   const [loginMsg, setLoginMsg] = useState("");
 
   const fields: ConfigField[] = [
+    { key: "provider", label: "Provider", type: "select", options: ["google", "openai", "antigravity"] },
     { key: "apiKey", label: "API Key", type: "password" },
     { key: "baseUrl", label: "Base URL", type: "text" },
-    { key: "provider", label: "Provider", type: "select", options: ["google", "openai", "antigravity"] },
     { key: "modelName", label: "模型名称", type: "text" },
     { key: "inputDir", label: "输入目录", type: "text" },
     { key: "outputDir", label: "输出目录", type: "text" },
@@ -362,7 +362,12 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
                );
             }
         } else if (field.type === "select") {
-            valComponent = <Text color={isFocused ? "cyan" : undefined}>{displayValue}</Text>;
+            const isProvider = field.key === "provider";
+            valComponent = (
+                <Text bold={isProvider} color={isProvider ? "magenta" : (isFocused ? "cyan" : undefined)}>
+                    {displayValue}
+                </Text>
+            );
         } else {
             if (isFocused && isEditing) {
                 valComponent = (
