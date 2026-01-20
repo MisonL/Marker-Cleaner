@@ -150,26 +150,47 @@ export async function convertFormat(
 ): Promise<Buffer> {
   const ext = originalExt ? originalExt.toLowerCase() : "";
   
-  // 核心逻辑：如果是原始输出
-  if (format === "original" || !format) {
-      // 检查输入 Buffer 真实类型（前 8 位）
-      const header = imageBuffer.slice(0, 8).toString("hex");
-      const isPng = header.startsWith("89504e470d0a1a0a");
+  // 核心逻辑：检测输入 Buffer 的真实物理格式
+  const header = imageBuffer.slice(0, 12).toString("hex");
+  let actualType: "jpg" | "png" | "webp" | "unknown" = "unknown";
 
-      // 如果是本地修复产生的 PNG 缓存，但目标扩展名要求 JPG/WebP，则必须强制转码
-      if (isPng) {
-          if (ext === ".jpg" || ext === ".jpeg") {
-              return sharp(imageBuffer).withMetadata().jpeg({ quality: 90 }).toBuffer();
-          }
-          if (ext === ".webp") {
-              return sharp(imageBuffer).withMetadata().webp({ quality: 90 }).toBuffer();
-          }
-      }
-      
-      // 其他情况（已经是目标格式或无法识别），则执行零损耗直出
-      return imageBuffer;
+  if (header.startsWith("89504e470d0a1a0a")) {
+    actualType = "png";
+  } else if (header.startsWith("ffd8ff")) {
+    actualType = "jpg";
+  } else if (header.startsWith("52494646") && header.includes("57454250", 12)) {
+    // RIFF .... WEBP
+    actualType = "webp";
   }
 
+  // 判定预期格式
+  let expectedType: typeof actualType = "unknown";
+  if (ext === ".jpg" || ext === ".jpeg") expectedType = "jpg";
+  else if (ext === ".png") expectedType = "png";
+  else if (ext === ".webp") expectedType = "webp";
+
+  // 情况 1: 如果是原始输出
+  if (format === "original" || !format) {
+      // 只有当物理格式与目标扩展名完全一致时，才走“零损耗直出”
+      if (actualType === expectedType && actualType !== "unknown") {
+          return imageBuffer;
+      }
+
+      // 如果不一致（如 AI 返回 JPEG 但原文件是 WebP），或者无法识别，则必须强制转码以实现名实对齐
+      if (expectedType === "jpg") {
+          return sharp(imageBuffer).withMetadata().jpeg({ quality: 90 }).toBuffer();
+      }
+      if (expectedType === "png") {
+          return sharp(imageBuffer).withMetadata().png().toBuffer();
+      }
+      if (expectedType === "webp") {
+          return sharp(imageBuffer).withMetadata().webp({ quality: 90 }).toBuffer();
+      }
+
+      return imageBuffer; // 彻底无法识别，兜底直出
+  }
+
+  // 情况 2: 显式指定了输出格式 (png/jpg/webp)
   const image = sharp(imageBuffer).withMetadata();
 
   switch (format) {
