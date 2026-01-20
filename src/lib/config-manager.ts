@@ -83,14 +83,46 @@ const CONFIG_FILE = "marker-cleaner.json";
 const CONFIG_DIR = ".marker-cleaner";
 
 /**
- * 获取配置目录路径 (~/.marker-cleaner/)
+ * 获取跨平台配置目录路径
+ * - Linux: $XDG_CONFIG_HOME/marker-cleaner 或 ~/.config/marker-cleaner
+ * - Windows: %APPDATA%/marker-cleaner
+ * - macOS: ~/.marker-cleaner
  */
 export function getConfigDir(): string {
-  const dir = join(homedir(), CONFIG_DIR);
+  let baseDir: string;
+
+  if (process.platform === "win32") {
+    baseDir = process.env.APPDATA || join(homedir(), "AppData", "Roaming");
+  } else if (process.platform === "linux") {
+    baseDir = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
+  } else {
+    // macOS 或其他 Unix
+    baseDir = homedir();
+  }
+
+  const dir = join(baseDir, process.platform === "darwin" ? ".marker-cleaner" : "marker-cleaner");
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
   return dir;
+}
+
+/**
+ * 尝试从旧路径迁移配置文件
+ */
+function migrateOldConfig(): void {
+  const oldConfigPath = join(process.cwd(), CONFIG_FILE);
+  const newConfigPath = join(getConfigDir(), CONFIG_FILE);
+  
+  if (existsSync(oldConfigPath) && !existsSync(newConfigPath)) {
+    try {
+      const oldContent = readFileSync(oldConfigPath, "utf-8");
+      writeFileSync(newConfigPath, oldContent, "utf-8");
+      console.log(`✅ 已将旧配置迁移至: ${newConfigPath}`);
+    } catch (e) {
+      console.warn(`⚠️ 配置迁移失败: ${e}`);
+    }
+  }
 }
 
 export function getDefaultConfig(): Config {
@@ -101,12 +133,15 @@ export function getDefaultConfig(): Config {
  * 加载配置，如果不存在则创建默认配置
  */
 export function loadConfig(): Config {
+  // 尝试迁移旧配置
+  migrateOldConfig();
+  
   const configPath = join(getConfigDir(), CONFIG_FILE);
 
   if (!existsSync(configPath)) {
     // 配置文件不存在，创建默认配置
     const defaultConfig = getDefaultConfig();
-    saveConfig(defaultConfig, cwd);
+    saveConfig(defaultConfig);
     console.log(`✅ 已创建默认配置文件: ${configPath}`);
     return defaultConfig;
   }
@@ -183,8 +218,8 @@ export interface Progress {
 /**
  * 加载处理进度
  */
-export function loadProgress(cwd: string = process.cwd()): Progress {
-  const progressPath = join(cwd, PROGRESS_FILE);
+export function loadProgress(): Progress {
+  const progressPath = join(getConfigDir(), PROGRESS_FILE);
 
   if (!existsSync(progressPath)) {
     return {
@@ -215,11 +250,8 @@ export function loadProgress(cwd: string = process.cwd()): Progress {
 /**
  * 保存进度
  */
-export function saveProgress(
-  progress: Progress,
-  cwd: string = process.cwd(),
-): void {
-  const progressPath = join(cwd, PROGRESS_FILE);
+export function saveProgress(progress: Progress): void {
+  const progressPath = join(getConfigDir(), PROGRESS_FILE);
   progress.lastUpdated = new Date().toISOString();
   writeFileSync(progressPath, JSON.stringify(progress, null, 2), "utf-8");
 }
@@ -227,8 +259,8 @@ export function saveProgress(
 /**
  * 清除进度
  */
-export function clearProgress(cwd: string = process.cwd()): void {
-  const progressPath = join(cwd, PROGRESS_FILE);
+export function clearProgress(): void {
+  const progressPath = join(getConfigDir(), PROGRESS_FILE);
   if (existsSync(progressPath)) {
     writeFileSync(
       progressPath,

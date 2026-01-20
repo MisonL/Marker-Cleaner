@@ -4,7 +4,12 @@
   "type": "module",
   "scripts": {
     "start": "bun run src/index.tsx",
-    "dev": "bun --watch run src/index.tsx"
+    "dev": "bun --watch run src/index.tsx",
+    "build": "bun run build:mac && bun run build:win && bun run build:linux",
+    "build:mac": "bun build src/index.tsx --compile --target=bun-darwin-arm64 --external=sharp --outfile=dist/marker-cleaner-macos",
+    "build:mac-x64": "bun build src/index.tsx --compile --target=bun-darwin-x64 --external=sharp --outfile=dist/marker-cleaner-macos-x64",
+    "build:win": "bun build src/index.tsx --compile --target=bun-windows-x64 --external=sharp --outfile=dist/marker-cleaner-win.exe",
+    "build:linux": "bun build src/index.tsx --compile --target=bun-linux-x64 --external=sharp --outfile=dist/marker-cleaner-linux"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
