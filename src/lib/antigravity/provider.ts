@@ -158,16 +158,17 @@ export class AntigravityProvider implements AIProvider {
       const jsonMatch = text.match(/\[[\s\S]*?\]/);
       if (!jsonMatch) return [];
 
-      const parsed = JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(jsonMatch[0]) as unknown[];
       if (!Array.isArray(parsed)) return [];
 
       return parsed
         .filter(
-          (item) =>
-            typeof item.ymin === "number" &&
-            typeof item.xmin === "number" &&
-            typeof item.ymax === "number" &&
-            typeof item.xmax === "number"
+          (item): item is { ymin: number; xmin: number; ymax: number; xmax: number } =>
+            typeof item === "object" && item !== null &&
+            "ymin" in item && typeof item.ymin === "number" &&
+            "xmin" in item && typeof item.xmin === "number" &&
+            "ymax" in item && typeof item.ymax === "number" &&
+            "xmax" in item && typeof item.xmax === "number"
         )
         .map((item) => ({
           ymin: item.ymin,

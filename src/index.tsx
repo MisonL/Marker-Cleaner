@@ -225,6 +225,13 @@ interface ConfigScreenProps {
   onCancel: () => void;
 }
 
+interface ConfigField {
+  key: keyof Config;
+  label: string;
+  type: "text" | "password" | "boolean" | "select";
+  options?: string[];
+}
+
 const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel }) => {
   const [editConfig, setEditConfig] = useState(config);
   const [focusIndex, setFocusIndex] = useState(0);
@@ -232,7 +239,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
   const [authState, setAuthState] = useState(loadToken());
   const [loginMsg, setLoginMsg] = useState("");
 
-  const fields: { key: keyof Config; label: string; type: "text" | "password" | "boolean" | "select"; options?: string[] }[] = [
+  const fields: ConfigField[] = [
     { key: "apiKey", label: "API Key", type: "password" },
     { key: "baseUrl", label: "Base URL", type: "text" },
     { key: "provider", label: "Provider", type: "select", options: ["google", "openai", "antigravity"] },
@@ -260,19 +267,22 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
         const field = fields[focusIndex];
         if (!field) return;
 
-        const key = field.key;
+        const configKey = field.key;
         if (field.type === "boolean") {
-            setEditConfig(prev => ({ 
-              ...prev, 
-              [key]: !prev[key] 
-            }));
+            const val = editConfig[configKey];
+            if (typeof val === "boolean") {
+                setEditConfig(prev => ({ ...prev, [configKey]: !val }));
+            }
         } else if (field.type === "select" && field.options) {
-             const currentVal = editConfig[key] as string;
-             const nextIndex = (field.options.indexOf(currentVal) + 1) % field.options.length;
-             setEditConfig(prev => ({ 
-               ...prev, 
-               [key]: field.options![nextIndex] 
-             }));
+             const currentVal = editConfig[configKey];
+             if (typeof currentVal === "string") {
+                 const options = field.options;
+                 const nextIndex = (options.indexOf(currentVal) + 1) % options.length;
+                 const nextVal = options[nextIndex];
+                 if (nextVal !== undefined) {
+                     setEditConfig(prev => ({ ...prev, [configKey]: nextVal }));
+                 }
+             }
         } else {
             setIsEditing(true);
         }
