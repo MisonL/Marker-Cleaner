@@ -1,4 +1,12 @@
 import { createHash } from "node:crypto";
+import open from "open";
+
+/**
+ * 跨平台打开文件或文件夹
+ */
+export async function openPath(path: string): Promise<void> {
+  await open(path);
+}
 
 /**
  * 检测图片 MIME 类型（基于魔数）
@@ -115,4 +123,11 @@ export function isIterm2(): boolean {
  */
 export function sha256(buffer: Buffer): Buffer {
   return createHash("sha256").update(buffer).digest();
+}
+
+/**
+ * 等待指定毫秒数
+ */
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -1,11 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"; // 新增导入
-import { dirname, extname, join } from "node:path"; // 新增导入
+import { basename, dirname, extname, join } from "node:path"; // 新增导入
 import { Box, Text, render, useApp, useInput } from "ink";
 import SelectInput from "ink-select-input";
 import Spinner from "ink-spinner";
 import TextInput from "ink-text-input"; // 新增导入
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createProvider } from "./lib/ai";
 import { loadToken, loginWithAntigravity } from "./lib/antigravity/auth";
 import { AntigravityProvider, type QuotaStatus } from "./lib/antigravity/provider";
@@ -15,7 +15,47 @@ function isAntigravityProvider(provider: unknown): provider is AntigravityProvid
 import { BatchProcessor } from "./lib/batch-processor";
 import { type Config, loadConfig, resetConfig, saveConfig } from "./lib/config-manager";
 import { createLogger } from "./lib/logger";
-import { formatDuration, renderImageToTerminal } from "./lib/utils";
+import type { BatchTask } from "./lib/types";
+import { formatDuration, openPath, renderImageToTerminal } from "./lib/utils";
+
+// ============ Hooks ============
+
+function useShortcuts(params: {
+  screen: Screen;
+  onExit: () => void;
+  onNavigate: (screen: Screen) => void;
+  onSelectMenu: (index: number) => void;
+  onOpenReport?: () => void;
+  canOpenReport: boolean;
+}) {
+  const { screen, onExit, onNavigate, onSelectMenu, onOpenReport, canOpenReport } = params;
+
+  useInput(async (input, key) => {
+    const lowerInput = input.toLowerCase();
+
+    // 通用退出逻辑
+    if (key.escape || lowerInput === "q") {
+      if (screen !== "menu") {
+        onNavigate("menu");
+      } else {
+        onExit();
+      }
+    }
+
+    // 主菜单快捷键
+    if (screen === "menu") {
+      if (lowerInput === "s") onSelectMenu(0);
+      if (lowerInput === "f") onSelectMenu(1);
+      if (lowerInput === "c") onSelectMenu(2);
+      if (lowerInput === "r") onSelectMenu(3);
+    }
+
+    // 完成页快捷键
+    if (screen === "done" && lowerInput === "o" && canOpenReport) {
+      onOpenReport?.();
+    }
+  });
+}
 
 // ============ 依赖检测 ============
 let sharpAvailable = true;
@@ -25,7 +65,110 @@ try {
   sharpAvailable = false;
 }
 
-type Screen = "menu" | "config" | "process" | "done";
+type Screen = "menu" | "config" | "process" | "done" | "file-selection";
+
+// ============ 单文件选择界面 ============
+
+interface FileSelectionScreenProps {
+  inputDir: string;
+  onSelect: (path: string) => void;
+  onCancel: () => void;
+}
+
+const FileSelectionScreen: React.FC<FileSelectionScreenProps> = ({
+  inputDir,
+  onSelect,
+  onCancel,
+}) => {
+  const [files, setFiles] = useState<{ label: string; value: string }[]>([]);
+  const [manualPath, setManualPath] = useState("");
+  const [mode, setMode] = useState<"list" | "manual">("list");
+
+  useEffect(() => {
+    try {
+      if (existsSync(inputDir)) {
+        const items = require("node:fs").readdirSync(inputDir);
+        const imageFiles = items
+          .filter((f: string) => /\.(png|jpe?g|webp)$/i.test(f))
+          .map((f: string) => ({ label: f, value: join(inputDir, f) }));
+        setFiles(imageFiles);
+      }
+    } catch {}
+  }, [inputDir]);
+
+  return (
+    <Box flexDirection="column" paddingX={2}>
+      <Text bold color="cyan">
+        🖼️ 单文件处理
+      </Text>
+      <Box marginBottom={1}>
+        <Text dimColor>请选择文件或输入路径 (Esc 返回)</Text>
+      </Box>
+
+      <Box
+        borderStyle="round"
+        borderColor="gray"
+        paddingX={1}
+        marginBottom={1}
+        flexDirection="column"
+      >
+        <Box>
+          <Text color={mode === "list" ? "green" : "white"}>
+            {mode === "list" ? "●" : "○"} 选择列表{" "}
+          </Text>
+          <Text color={mode === "manual" ? "green" : "white"}>
+            {mode === "manual" ? "●" : "○"} 手动输入
+          </Text>
+        </Box>
+
+        {mode === "list" ? (
+          <Box marginTop={1} flexDirection="column">
+            {files.length > 0 ? (
+              <SelectInput items={files} onSelect={(item) => onSelect(item.value)} limit={8} />
+            ) : (
+              <Text dimColor>input 目录下没有找到图片</Text>
+            )}
+            <Box marginTop={1}>
+              <Text dimColor>提示: 按 </Text>
+              <Text color="yellow">Tab</Text>
+              <Text dimColor> 切换到手动输入</Text>
+            </Box>
+          </Box>
+        ) : (
+          <Box marginTop={1} flexDirection="column">
+            <Box>
+              <Text>路径: </Text>
+              <TextInput
+                value={manualPath}
+                onChange={setManualPath}
+                onSubmit={(val) => {
+                  if (val.trim()) onSelect(val.trim());
+                }}
+              />
+            </Box>
+            <Box marginTop={1} flexDirection="column">
+              <Text dimColor>支持相对路径 (如 ./test.jpg) 或绝对路径</Text>
+              <Text dimColor>按 Enter 确认，按 Tab 切换回列表</Text>
+            </Box>
+          </Box>
+        )}
+      </Box>
+
+      {/* 快捷键监听 */}
+      {(() => {
+        useInput((input, key) => {
+          if (key.tab) {
+            setMode(mode === "list" ? "manual" : "list");
+          }
+          if (key.escape) {
+            onCancel();
+          }
+        });
+        return null;
+      })()}
+    </Box>
+  );
+};
 
 interface MenuItem {
   label: string;
@@ -38,6 +181,7 @@ const App: React.FC = () => {
   const [screen, setScreen] = useState<Screen>("menu");
   const [config, setConfig] = useState<Config>(() => loadConfig());
   const [status, setStatus] = useState("");
+  const processorRef = useRef<BatchProcessor | null>(null);
   const [progress, setProgress] = useState({ current: 0, total: 0, file: "" });
   const [cost, setCost] = useState(0);
   const [thumbnail, setThumbnail] = useState("");
@@ -47,8 +191,17 @@ const App: React.FC = () => {
   }>({});
   const [error, setError] = useState("");
 
+  const [reportPath, setReportPath] = useState<string | undefined>();
+  const [sessionStats, setSessionStats] = useState<{
+    success: number;
+    failed: number;
+    cost: number;
+    tokens: { input: number; output: number };
+  }>({ success: 0, failed: 0, cost: 0, tokens: { input: 0, output: 0 } });
+
   const menuItems: MenuItem[] = [
-    { label: "🚀 开始处理", value: "start", icon: "🚀" },
+    { label: "🚀 批量处理", value: "start", icon: "🚀" },
+    { label: "🖼️  单文件处理", value: "single", icon: "🖼️" },
     { label: "⚙️  配置设置", value: "settings", icon: "⚙️" },
     { label: "🔄 恢复默认配置", value: "reset", icon: "🔄" },
     { label: "🚪 退出", value: "exit", icon: "🚪" },
@@ -59,6 +212,9 @@ const App: React.FC = () => {
       case "start":
         setScreen("process");
         await runProcess(false);
+        break;
+      case "single":
+        setScreen("file-selection");
         break;
       case "settings":
         setScreen("config");
@@ -75,7 +231,7 @@ const App: React.FC = () => {
     }
   };
 
-  const runProcess = async (previewOnly: boolean) => {
+  const runProcess = async (previewOnly: boolean, singleFilePath?: string) => {
     try {
       const hasToken = !!loadToken();
       const isAntigravity = config.provider === "antigravity";
@@ -100,10 +256,15 @@ const App: React.FC = () => {
         logger,
         onProgress: (current, total, file, stats) => {
           setProgress({ current, total, file });
-          if (stats?.lastTaskTokens || stats?.lastTaskDuration) {
+          if (!stats) {
+            setLastStats({});
+            setThumbnail("");
+            return;
+          }
+          if (stats.lastTaskTokens || stats.lastTaskDuration) {
             setLastStats({ tokens: stats.lastTaskTokens, duration: stats.lastTaskDuration });
           }
-          if (stats?.lastTaskThumbnail) {
+          if (stats.lastTaskThumbnail) {
             setThumbnail(renderImageToTerminal(stats.lastTaskThumbnail));
           }
         },
@@ -111,77 +272,127 @@ const App: React.FC = () => {
           setCost(newCost);
         },
       });
+      processorRef.current = processor;
 
-      const allTasks = processor.scanTasks();
-      const pendingTasks = processor.filterPendingTasks(allTasks);
+      let pendingTasks: BatchTask[] = [];
+      if (singleFilePath) {
+        const isAbsolute =
+          singleFilePath.startsWith("/") ||
+          (process.platform === "win32" &&
+            (singleFilePath.includes(":") || singleFilePath.startsWith("\\\\")));
+        const absPath = isAbsolute ? singleFilePath : join(process.cwd(), singleFilePath);
 
-      setStatus(`找到 ${allTasks.length} 个文件，待处理 ${pendingTasks.length} 个`);
+        if (!existsSync(absPath)) throw new Error(`文件不存在: ${absPath}`);
 
-      await processor.process(pendingTasks, previewOnly);
+        pendingTasks = [
+          {
+            absoluteInputPath: absPath,
+            absoluteOutputPath: join(
+              config.outputDir,
+              `${basename(absPath, extname(absPath))}${config.renameRules.suffix}${extname(absPath)}`,
+            ),
+            relativePath: basename(absPath),
+          },
+        ];
+      } else {
+        const allTasks = processor.scanTasks();
+        pendingTasks = processor.filterPendingTasks(allTasks);
+      }
+
+      setStatus(
+        singleFilePath
+          ? `正在处理单个文件: ${basename(singleFilePath)}`
+          : `找到 ${pendingTasks.length} 个任务`,
+      );
+
+      const result = await processor.process(pendingTasks, previewOnly, !!singleFilePath);
+
+      setReportPath(result.reportPath);
+      setSessionStats({
+        success: result.totalSuccess,
+        failed: result.totalFailed,
+        cost: result.totalCost,
+        tokens: result.totalTokens,
+      });
 
       setScreen("done");
+
+      if (result.reportPath) {
+        openPath(result.reportPath).catch((err) => {
+          logger.warn(`自动打开报告失败: ${err}`);
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setScreen("menu");
     }
   };
 
-  useInput((input, key) => {
-    const lowerInput = input.toLowerCase();
-
-    if (key.escape || lowerInput === "q") {
-      if (screen !== "menu") {
-        setScreen("menu");
-      } else {
-        exit();
+  useShortcuts({
+    screen,
+    onExit: exit,
+    onNavigate: (target) => {
+      // 停止处理器
+      if (screen === "process" && target === "menu") {
+        processorRef.current?.stop();
       }
-    }
-
-    // 快捷键支持 (主菜单)
-    if (screen === "menu") {
-      if (lowerInput === "s" && menuItems[0]) handleMenuSelect(menuItems[0]); // Start
-      if (lowerInput === "c" && menuItems[1]) handleMenuSelect(menuItems[1]); // Config/Settings
-      if (lowerInput === "r" && menuItems[2]) handleMenuSelect(menuItems[2]); // Reset
-    }
+      setScreen(target);
+    },
+    onSelectMenu: (idx) => {
+      const item = menuItems[idx];
+      if (item) handleMenuSelect(item);
+    },
+    onOpenReport: () => {
+      if (reportPath) openPath(reportPath);
+    },
+    canOpenReport: !!reportPath,
   });
 
   return (
     <Box flexDirection="column" padding={1}>
       {/* 标题 */}
-      <Box marginBottom={1}>
+      <Box
+        flexDirection="column"
+        borderStyle="round"
+        borderColor="cyan"
+        paddingX={3}
+        paddingY={0}
+        marginBottom={1}
+        alignSelf="flex-start"
+      >
         <Text bold color="cyan">
-          ╔══════════════════════════════════════╗
+          🧹 MARKER CLEANER
         </Text>
-      </Box>
-      <Box>
-        <Text bold color="cyan">
-          ║ 🧹 智能标记清除工具 v1.0 ║
-        </Text>
-      </Box>
-      <Box marginBottom={1}>
-        <Text bold color="cyan">
-          ╚══════════════════════════════════════╝
-        </Text>
+        <Text dimColor>Professional AI Image Restorer v1.0.0</Text>
       </Box>
 
-      {/* Provider 信息 */}
+      {/* Provider 信息 - 状态胶囊 */}
       <Box marginBottom={1}>
-        <Text dimColor>
-          Provider: {config.provider} | Model: {config.modelName}
-        </Text>
+        <Box borderStyle="single" borderColor="gray" paddingX={1} marginRight={2}>
+          <Text color="magenta">Provider</Text>
+          <Text> {config.provider}</Text>
+        </Box>
+        <Box borderStyle="single" borderColor="gray" paddingX={1}>
+          <Text color="blue">Model</Text>
+          <Text> {config.modelName}</Text>
+        </Box>
       </Box>
 
       {/* 错误展示 */}
       {error && (
         <Box marginBottom={1}>
-          <Text color="red">{error}</Text>
+          <Text color="red" bold>
+            ✘ {error}
+          </Text>
         </Box>
       )}
 
       {/* 状态栏 */}
       {status && (
-        <Box marginBottom={1}>
-          <Text color="yellow">{status}</Text>
+        <Box marginBottom={1} paddingX={1}>
+          <Text color="yellow" italic>
+            ✨ {status}
+          </Text>
         </Box>
       )}
 
@@ -273,13 +484,24 @@ const App: React.FC = () => {
         />
       )}
 
+      {screen === "file-selection" && (
+        <FileSelectionScreen
+          inputDir={config.inputDir}
+          onSelect={(path) => {
+            setScreen("process");
+            runProcess(false, path);
+          }}
+          onCancel={() => setScreen("menu")}
+        />
+      )}
+
       {screen === "process" && (
         <Box flexDirection="column">
           <Box>
             <Text color="green">
               <Spinner type="dots" />
             </Text>
-            <Text> 正在处理 ...</Text>
+            <Text> 正在处理 ... (按 'Q' 终止)</Text>
           </Box>
           {progress.total > 0 && (
             <Box marginTop={1} flexDirection="column">
@@ -313,21 +535,49 @@ const App: React.FC = () => {
       )}
 
       {screen === "done" && (
-        <Box flexDirection="column">
+        <Box flexDirection="column" borderStyle="round" borderColor="green" paddingX={2}>
           <Text color="green" bold>
-            ✅ 处理完成!
+            ✅ 批处理任务完成!
           </Text>
-          <Text>已处理: {progress.current} 个文件</Text>
-          <Text color="yellow">💰 总成本: ${cost.toFixed(4)}</Text>
-          <Box marginTop={1}>
-            <Text dimColor>按 Esc 返回菜单</Text>
+          <Box flexDirection="column" marginTop={1}>
+            <Text>
+              • 成功: <Text color="green">{sessionStats.success}</Text> 个
+            </Text>
+            <Text>
+              • 失败: <Text color="red">{sessionStats.failed}</Text> 个
+            </Text>
+            <Text>
+              • 耗能:{" "}
+              <Text color="cyan">{sessionStats.tokens.input + sessionStats.tokens.output}</Text>{" "}
+              Tokens
+            </Text>
+            <Text>
+              • 本次成本: <Text color="yellow">${sessionStats.cost.toFixed(4)}</Text>
+            </Text>
+          </Box>
+          <Box marginTop={1} flexDirection="column">
+            <Text dimColor>按 </Text>
+            <Box>
+              <Text bold color="magenta">
+                {" "}
+                O{" "}
+              </Text>
+              <Text dimColor> 键打开 HTML 处理报告</Text>
+            </Box>
+            <Text dimColor>按 Esc 返回主菜单</Text>
           </Box>
         </Box>
       )}
 
       {/* 底部导航 */}
-      <Box marginTop={1}>
-        <Text dimColor>按 ↑↓ 导航 | 按 Enter 选择 | 按 Q 退出</Text>
+      <Box marginTop={1} borderStyle="classic" borderColor="gray" paddingX={1}>
+        <Text dimColor>快捷键: </Text>
+        <Text color="cyan">↑↓</Text>
+        <Text dimColor> 导航 | </Text>
+        <Text color="cyan">Enter</Text>
+        <Text dimColor> 选择 | </Text>
+        <Text color="cyan">Q</Text>
+        <Text dimColor> 退出</Text>
       </Box>
     </Box>
   );
@@ -350,6 +600,29 @@ interface ConfigField {
   advanced?: boolean;
 }
 
+const getModelOptions = (provider: string) => {
+  if (provider === "antigravity") {
+    return [
+      "gemini-3-pro-image", // Native
+      "gemini-3-flash", // Detection
+      "gemini-3-pro-high", // Detection
+      "gemini-3-pro-low", // Detection
+      "gemini-2.5-flash-image", // Native
+      "claude-sonnet-4-5", // Detection
+    ];
+  }
+  if (provider === "google") {
+    return [
+      "gemini-2.5-flash-image", // Native
+      "gemini-2.0-flash-exp", // Native
+      "gemini-1.5-pro", // Detection
+      "gemini-1.5-flash", // Detection
+      "(Manual Input)", // 允许手动输入
+    ];
+  }
+  return ["(Manual Input)"];
+};
+
 const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, logger }) => {
   const [editConfig, setEditConfig] = useState(config);
   const [focusIndex, setFocusIndex] = useState(0);
@@ -358,6 +631,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
   const [loginMsg, setLoginMsg] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
+  const [manualModelMode, setManualModelMode] = useState(false);
 
   useEffect(() => {
     if (editConfig.provider === "antigravity" && authState) {
@@ -395,29 +669,18 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
     return newObj;
   };
 
-  const getModelOptions = (provider: string) => {
-    if (provider === "antigravity") {
-      return [
-        "gemini-3-pro-image", // Native
-        "gemini-3-flash", // Detection
-        "gemini-3-pro-high", // Detection
-        "gemini-3-pro-low", // Detection
-        "claude-sonnet-4-5", // Detection
-      ];
-    }
-    if (provider === "google") {
-      return [
-        "gemini-2.5-flash-image", // Native
-        "gemini-2.0-flash-exp", // Native
-        "gemini-1.5-pro", // Detection
-        "gemini-1.5-flash", // Detection
-      ];
-    }
-    return [];
-  };
-
   const currentProvider = editConfig.provider;
   const modelOptions = getModelOptions(currentProvider);
+
+  // 初始化或当 Provider 变更时检查是否需要进入手动模式
+  useEffect(() => {
+    const opts = getModelOptions(editConfig.provider);
+    if (opts.length > 0 && !opts.includes(editConfig.modelName)) {
+      setManualModelMode(true);
+    } else {
+      setManualModelMode(false);
+    }
+  }, [editConfig.provider, editConfig.modelName]);
 
   const fields: ConfigField[] = [
     {
@@ -430,13 +693,22 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
     { key: "baseUrl", label: "代理地址", type: "text" },
     {
       key: "modelName",
-      label: "模型名称",
-      type: modelOptions.length > 0 ? "select" : "text",
-      options: modelOptions.length > 0 ? modelOptions : undefined,
+      label: manualModelMode ? "模型名称 (输入 'reset' 重置)" : "模型名称",
+      type: manualModelMode || modelOptions.length === 0 ? "text" : "select",
+      options: manualModelMode ? undefined : [...modelOptions, "(Manual Input)"],
     },
     { key: "inputDir", label: "输入目录", type: "text" },
+    {
+      key: "outputFormat",
+      label: "输出格式",
+      type: "select",
+      options: ["original", "png", "jpg", "webp"],
+    },
     { key: "outputDir", label: "输出目录", type: "text" },
     { key: "recursive", label: "递归遍历", type: "boolean" },
+    { key: "preserveStructure", label: "保持目录结构", type: "boolean" },
+    { key: "concurrency", label: "任务并发数 (1-10)", type: "text" },
+    { key: "taskTimeout", label: "单任务超时 (ms)", type: "text" },
     { key: "budgetLimit", label: "成本熔断 (USD)", type: "text" },
     { key: "debugLog", label: "Debug 日志", type: "boolean" },
 
@@ -499,6 +771,8 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
               if (newProviderOptions.length > 0 && !newProviderOptions.includes(newModelName)) {
                 newModelName = newProviderOptions[0] || "";
               }
+              // 切换 Provider 时重置手动模式
+              setManualModelMode(false);
 
               setEditConfig((prev) => ({
                 ...prev,
@@ -509,11 +783,28 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
                 providerSettings: updatedSettings,
               }));
             } else {
-              setEditConfig((prev) => setNestedValue(prev, configKey, nextVal));
+              // 处理模型名称的特殊逻辑
+              if (configKey === "modelName" && nextVal === "(Manual Input)") {
+                setManualModelMode(true);
+                setEditConfig((prev) => setNestedValue(prev, configKey, "")); // 清空以供输入
+              } else {
+                setEditConfig((prev) => setNestedValue(prev, configKey, nextVal));
+              }
             }
           }
         }
       } else {
+        // Text Input Logic
+        if (configKey === "modelName" && manualModelMode) {
+          // 如果用户输入了 "reset"，则重置回列表模式
+          const currentVal = getNestedValue(editConfig, configKey);
+          if (currentVal === "reset") {
+            setManualModelMode(false);
+            const defaultModel = getModelOptions(editConfig.provider)[0] || "";
+            setEditConfig((prev) => setNestedValue(prev, configKey, defaultModel));
+            return;
+          }
+        }
         setIsEditing(true);
       }
     } else if (input === "a") {
@@ -723,41 +1014,37 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
       })}
 
       {/* 底部导航 */}
-      <Box marginTop={2} flexDirection="column">
-        <Text dimColor>按 Esc 返回 | 按 ↑↓ 导航 | 按 Enter 确认/编辑</Text>
+      <Box
+        marginTop={2}
+        flexDirection="column"
+        borderStyle="classic"
+        borderColor="gray"
+        paddingX={1}
+      >
         <Box>
-          <Text dimColor>按 </Text>
-          <Text bold color="cyan">
-            S
-          </Text>
-          <Text dimColor> 保存 | 按 </Text>
-          <Text bold color="cyan">
-            A
-          </Text>
-          <Text dimColor> {showAdvanced ? "折叠" : "展开"}高级设置 | 按 </Text>
-          <Text bold color="cyan">
-            O
-          </Text>
-          <Text dimColor> 打开日志文件夹</Text>
+          <Text dimColor>快捷键: </Text>
+          <Text color="cyan">Esc</Text>
+          <Text dimColor> 返回 | </Text>
+          <Text color="cyan">↑↓</Text>
+          <Text dimColor> 导航 | </Text>
+          <Text color="cyan">Enter</Text>
+          <Text dimColor> 确认/编辑</Text>
         </Box>
-        {showAdvanced && (
-          <Text dimColor>
-            按{" "}
-            <Text bold color="red">
-              R
-            </Text>{" "}
-            恢复所有 Prompt 为默认值
-          </Text>
-        )}
-        {editConfig.provider === "antigravity" && (
-          <Text dimColor>
-            按{" "}
-            <Text bold color="cyan">
-              L
-            </Text>{" "}
-            登录 Antigravity 账号
-          </Text>
-        )}
+        <Box marginTop={1}>
+          <Text color="magenta"> S </Text>
+          <Text dimColor>保存配置 | </Text>
+          <Text color="magenta"> A </Text>
+          <Text dimColor>{showAdvanced ? "折叠" : "展开"}高级 | </Text>
+          <Text color="magenta"> O </Text>
+          <Text dimColor>日志目录</Text>
+          {editConfig.provider === "antigravity" && (
+            <>
+              <Text dimColor> | </Text>
+              <Text color="magenta"> L </Text>
+              <Text dimColor>账号登录</Text>
+            </>
+          )}
+        </Box>
       </Box>
     </Box>
   );

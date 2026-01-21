@@ -88,6 +88,8 @@ export const ConfigSchema = z.object({
 
   // 高级配置
   previewCount: z.number().min(0).default(3),
+  concurrency: z.number().min(1).max(10).default(1),
+  taskTimeout: z.number().min(5000).default(300000), // 单任务超时 (ms)，默认 5 分钟
   debugLog: z.boolean().default(false),
   budgetLimit: z.number().default(0), // 0 表示禁用，单位美元
 

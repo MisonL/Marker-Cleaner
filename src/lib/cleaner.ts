@@ -70,24 +70,35 @@ export async function cleanMarkersLocal(
 }
 
 /**
- * 检测是否为标记颜色 (红/橙/黄)
+ * 检测是否为标记颜色 (红/橙/黄/蓝等高饱和度识别色)
  */
 function isMarkerColor(r: number, g: number, b: number): boolean {
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
-  const saturation = max === 0 ? 0 : (max - min) / max;
+  const delta = max - min;
+  const saturation = max === 0 ? 0 : delta / max;
 
-  // 高饱和度 (> 40%)
-  if (saturation < 0.4) return false;
+  // 1. 低饱和度排除 (确保是鲜艳的彩色，而非灰白黑)
+  if (saturation < 0.45) return false;
 
-  // 红色系: R 最大，且远大于 B
-  if (r > 150 && r > g * 0.8 && r > b * 1.5) return true;
+  // 2. 亮度判定 (排除极暗的颜色)
+  if (max < 40) return false;
 
-  // 橙色系: R 最大，G 次之
-  if (r > 180 && g > 80 && g < 200 && b < 100) return true;
+  // 3. 色相粗略判定 (基于 RGB 关系)
+  // 红色/橙色范围: R 占绝对优势
+  if (r > g * 1.2 && r > b * 1.5) {
+    return true;
+  }
 
-  // 黄色系: R 和 G 都高，B 低
-  if (r > 180 && g > 150 && b < 100) return true;
+  // 黄色范围: R 和 G 都高，B 低
+  if (r > 150 && g > 150 && b < 120 && Math.abs(r - g) < 60) {
+    return true;
+  }
+
+  // 蓝色范围 (新增建议): B 占优势
+  if (b > r * 1.5 && b > g * 1.2) {
+    return true;
+  }
 
   return false;
 }

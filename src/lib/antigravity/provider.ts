@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Config } from "../config-manager";
 import type { AIProvider, BoundingBox, ProcessResult } from "../types";
-import { detectMimeType, getPlatformInfo, parseBoxesFromText } from "../utils";
+import { detectMimeType, getPlatformInfo, parseBoxesFromText, sleep } from "../utils";
 import { getAccessToken, loadToken } from "./auth";
 import { ANTIGRAVITY_ENDPOINT } from "./constants";
 
@@ -57,79 +57,113 @@ export class AntigravityProvider implements AIProvider {
   }
 
   async processImage(imageBuffer: Buffer, prompt: string): Promise<ProcessResult> {
-    try {
-      const token = await getAccessToken();
-      const tokenData = loadToken(); // 需要 project_id
+    const maxRetries = 3;
+    let lastError: Error | null = null;
 
-      if (!tokenData?.project_id) {
-        throw new Error("Missing Project ID. Please re-login.");
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const result = await this.doProcessImage(imageBuffer, prompt);
+        // 如果是 API 返回的业务错误（比如 400 且不是瞬时的），直接返回不重试
+        if (!result.success && result.error?.includes("400")) {
+          return result;
+        }
+        if (result.success) return result;
+
+        // 如果是其他错误，记录并重试
+        lastError = new Error(result.error);
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        // 如果是 429 或者网络错误，等一下再重试
+        const isRetryable =
+          lastError.message.includes("429") ||
+          lastError.message.includes("closed") ||
+          lastError.message.includes("socket") ||
+          lastError.message.includes("timeout") ||
+          lastError.message.includes("50");
+
+        if (isRetryable && i < maxRetries - 1) {
+          const delay = 2 ** i * 1000;
+          await sleep(delay);
+          continue;
+        }
+        break;
       }
+    }
 
-      const base64 = imageBuffer.toString("base64");
-      const mimeType = detectMimeType(imageBuffer);
-      const { platform, arch } = getPlatformInfo();
+    return {
+      success: false,
+      error: lastError?.message || "Unknown error",
+    };
+  }
 
-      const body = {
-        project: tokenData.project_id,
-        model: this.modelName || "gemini-3-pro-image",
-        request: {
-          contents: [
-            {
-              role: "user",
-              parts: [
-                {
-                  inlineData: {
-                    mimeType,
-                    data: base64,
-                  },
+  private async doProcessImage(imageBuffer: Buffer, prompt: string): Promise<ProcessResult> {
+    const token = await getAccessToken();
+    const tokenData = loadToken();
+
+    if (!tokenData?.project_id) {
+      throw new Error("Missing Project ID. Please re-login.");
+    }
+
+    const base64 = imageBuffer.toString("base64");
+    const mimeType = detectMimeType(imageBuffer);
+    const { platform, arch } = getPlatformInfo();
+
+    const body = {
+      project: tokenData.project_id,
+      model: this.modelName || "gemini-3-pro-image",
+      request: {
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                inlineData: {
+                  mimeType,
+                  data: base64,
                 },
-                { text: prompt },
-              ],
-            },
-          ],
-        },
-        request_type: "agent", // image_gen 也可以，但 agent 更通用
-        userAgent: "antigravity",
-        requestId: randomUUID(),
-      };
+              },
+              { text: prompt },
+            ],
+          },
+        ],
+      },
+      request_type: "agent",
+      userAgent: "antigravity",
+      requestId: randomUUID(),
+    };
 
-      const response = await fetch(`${ENDPOINT}/v1internal:generateContent`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          "User-Agent": `antigravity/1.11.5 ${platform}/${arch}`,
-          "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
-          "Client-Metadata":
-            '{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}',
-        },
-        body: JSON.stringify(body),
-      });
+    const response = await fetch(`${ENDPOINT}/v1internal:generateContent`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "User-Agent": `antigravity/1.11.5 ${platform}/${arch}`,
+        "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
+        "Client-Metadata":
+          '{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}',
+      },
+      body: JSON.stringify(body),
+    });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorMsg = `Antigravity API Error ${response.status}`;
-        try {
-          const errorJson = JSON.parse(errorText);
-          if (errorJson.error?.message) {
-            errorMsg += `: ${errorJson.error.message}`;
-          } else {
-            errorMsg += `: ${errorText}`;
-          }
-        } catch {
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMsg = `Antigravity API Error ${response.status}`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.error?.message) {
+          errorMsg += `: ${errorJson.error.message}`;
+        } else {
           errorMsg += `: ${errorText}`;
         }
-        throw new Error(errorMsg);
+      } catch {
+        errorMsg += `: ${errorText}`;
       }
-
-      const result = (await response.json()) as AntigravityResponsePayload;
-      return this.parseResponse(result);
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
+      throw new Error(errorMsg);
     }
+
+    const result = (await response.json()) as AntigravityResponsePayload;
+    return this.parseResponse(result);
   }
 
   private parseResponse(response: AntigravityResponsePayload): ProcessResult {

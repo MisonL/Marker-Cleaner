@@ -6,7 +6,7 @@ import {
 } from "@google/generative-ai";
 import type { Config } from "../config-manager";
 import type { AIProvider, ProcessResult } from "../types";
-import { detectMimeType, parseBoxesFromText } from "../utils";
+import { detectMimeType, parseBoxesFromText, sleep } from "../utils";
 
 export class GoogleProvider implements AIProvider {
   readonly name = "Google Gemini";
@@ -47,17 +47,50 @@ export class GoogleProvider implements AIProvider {
         this.requestOptions,
       );
 
-      const response = await model.generateContent([
-        {
-          inlineData: {
-            mimeType,
-            data: base64,
-          },
-        },
-        prompt,
-      ]);
+      let lastError: unknown;
+      const maxRetries = 3;
 
-      return this.parseResponse(response);
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          if (attempt > 0) {
+            const delay = Math.min(1000 * 2 ** attempt, 10000);
+            await sleep(delay);
+          }
+
+          const response = await model.generateContent([
+            {
+              inlineData: {
+                mimeType,
+                data: base64,
+              },
+            },
+            prompt,
+          ]);
+
+          return this.parseResponse(response);
+        } catch (error: unknown) {
+          lastError = error;
+          const err = error as any;
+          const status = err?.status || err?.response?.status;
+          const message = err?.message || String(error);
+
+          // 只有 429 (Too Many Requests) 或 5xx 错误才重试
+          const isRetryable =
+            status === 429 ||
+            (status >= 500 && status < 600) ||
+            message.includes("fetch failed") ||
+            message.includes("socket");
+
+          if (!isRetryable || attempt === maxRetries) {
+            break;
+          }
+        }
+      }
+
+      return {
+        success: false,
+        error: lastError instanceof Error ? lastError.message : String(lastError),
+      };
     } catch (error) {
       return {
         success: false,
@@ -67,31 +100,27 @@ export class GoogleProvider implements AIProvider {
   }
 
   private parseResponse(response: GenerateContentResult): ProcessResult {
-    const candidate = response.response.candidates?.[0];
-    if (!candidate?.content?.parts) {
-      return { success: false, error: "No response content" };
-    }
-
-    const usage = response.response.usageMetadata;
-    const inputTokens = usage?.promptTokenCount ?? 0;
-    const outputTokens = usage?.candidatesTokenCount ?? 0;
-
-    // 检查是否有图片返回 (Pro 模式)
-    for (const part of candidate.content.parts) {
-      if (part.inlineData?.data) {
-        return {
-          success: true,
-          outputBuffer: Buffer.from(part.inlineData.data, "base64"),
-          inputTokens,
-          outputTokens,
-        };
+    try {
+      const candidates = response.response.candidates;
+      if (!candidates || candidates.length === 0) {
+        return { success: false, error: "AI 未返回任何候选结果 (可能受到安全策略拦截或内容违规)" };
       }
-    }
 
-    // 检查是否有文本返回 (Detection 模式 - 坐标检测)
-    for (const part of candidate.content.parts) {
-      if (part.text) {
-        const boxes = parseBoxesFromText(part.text);
+      const usage = response.response.usageMetadata;
+      const inputTokens = usage?.promptTokenCount ?? 0;
+      const outputTokens = usage?.candidatesTokenCount ?? 0;
+
+      // 获取文本内容进行坐标解析 (Detection 模式)
+      let text = "";
+      try {
+        text = response.response.text();
+      } catch (e) {
+        // 如果 text() 抛错，说明可能无法提取文本
+      }
+
+      // 1. 尝试解析坐标 (Detection 模式优先)
+      if (text) {
+        const boxes = parseBoxesFromText(text);
         if (boxes.length > 0) {
           return {
             success: true,
@@ -100,16 +129,33 @@ export class GoogleProvider implements AIProvider {
             outputTokens,
           };
         }
-        // 文本但没有有效坐标
+      }
+
+      // 2. 检查是否有图片返回 (Native 模式)
+      const part = candidates?.[0]?.content?.parts?.find((p) => p.inlineData);
+      if (part?.inlineData?.data) {
         return {
-          success: false,
-          error: `AI 返回文本但未检测到坐标: ${part.text.slice(0, 200)}`,
+          success: true,
+          outputBuffer: Buffer.from(part.inlineData.data, "base64"),
           inputTokens,
           outputTokens,
         };
       }
-    }
 
-    return { success: false, error: "Unknown response format" };
+      // 3. 回退处理
+      return {
+        success: false,
+        error: text
+          ? `AI 返回文本但未识别出有效坐标: ${text.slice(0, 100)}...`
+          : "AI 响应中未包含有效文本或图片数据",
+        inputTokens,
+        outputTokens,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: `解析 AI 响应时发生异常: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
   }
 }

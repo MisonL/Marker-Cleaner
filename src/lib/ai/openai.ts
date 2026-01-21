@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import type { Config } from "../config-manager";
 import type { AIProvider, ProcessResult } from "../types";
-import { detectMimeType, parseBoxesFromText } from "../utils";
+import { detectMimeType, parseBoxesFromText, sleep } from "../utils";
 
 export class OpenAIProvider implements AIProvider {
   readonly name = "OpenAI Compatible";
@@ -23,30 +23,61 @@ export class OpenAIProvider implements AIProvider {
       const base64 = imageBuffer.toString("base64");
       const mimeType = detectMimeType(imageBuffer);
 
-      const response = await this.client.chat.completions.create({
-        model: this.modelName,
-        messages: [
-          {
-            role: "user",
-            content: [
+      let lastError: unknown;
+      const maxRetries = 3;
+
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          if (attempt > 0) {
+            const delay = Math.min(1000 * 2 ** attempt, 10000);
+            await sleep(delay);
+          }
+
+          const response = await this.client.chat.completions.create({
+            model: this.modelName,
+            messages: [
               {
-                type: "image_url",
-                image_url: {
-                  url: `data:${mimeType};base64,${base64}`,
-                },
-              },
-              {
-                type: "text",
-                text: prompt,
+                role: "user",
+                content: [
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: `data:${mimeType};base64,${base64}`,
+                    },
+                  },
+                  {
+                    type: "text",
+                    text: prompt,
+                  },
+                ],
               },
             ],
-          },
-        ],
-        max_tokens: 1024,
-      });
+            max_tokens: 1024,
+          });
 
-      return this.parseResponse(response);
-    } catch (error) {
+          return this.parseResponse(response);
+        } catch (error: any) { // Keep any here for status/message access shorthand, or use type guard
+          lastError = error;
+          const status = error?.status || error?.response?.status;
+          const message = error?.message || String(error);
+
+          const isRetryable =
+            status === 429 ||
+            (status >= 500 && status < 600) ||
+            message.includes("fetch failed") ||
+            message.includes("socket");
+
+          if (!isRetryable || attempt === maxRetries) {
+            break;
+          }
+        }
+      }
+
+      return {
+        success: false,
+        error: lastError instanceof Error ? lastError.message : String(lastError),
+      };
+    } catch (error: unknown) {
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -54,7 +85,7 @@ export class OpenAIProvider implements AIProvider {
     }
   }
 
-  private parseResponse(response: OpenAI.Chat.Completions.ChatCompletion): ProcessResult {
+  private parseResponse(response: OpenAI.ChatCompletion): ProcessResult {
     const content = response.choices[0]?.message?.content;
     if (!content) {
       return { success: false, error: "No response content" };

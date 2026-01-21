@@ -30,11 +30,12 @@
 
 ### 🛠️ 生产力工具集
 
-- **CLI 交互界面**: 基于 React Ink 构建的现代化终端 UI，支持键盘快捷键 (S/C/R/Q) 操作。
-- **批量并发处理**: 智能递归遍历目录，自动保持输出文件的目录结构。
-- **成本熔断机制**: 支持设置 `budgetLimit` (美元)，达到预算上限自动安全停机，防止意外扣费。
-- **可视化报表**: 处理完成后自动生成 HTML 报告，包含处理前后对比图及详细 Token/耗时数据。
-- **智能重命名**: 内置重命名规则引擎，支持自动添加后缀、时间戳，并处理文件名冲突。
+- **CLI 交互界面**: 现代化 TUI，支持 `输出格式` 选择、`目录结构保持` 开关及键盘快捷键操作。
+- **批量并发处理**: 智能递归遍历目录，支持 **多线程并发** (默认为1，最高10)，大幅提升处理效率。
+- **任务级智能熔断**: 内置 120秒 任务超时熔断机制，防止单任务阻塞整体进度。
+- **成本熔断机制**: 支持设置 `budgetLimit` (美元)，达到预算上限自动安全停机。
+- **便携单文件**: 报告模板内置，编译后的二进制文件可 **单文件独立运行**，无需任何依赖。
+- **可视化报表**: 处理完成后自动生成 HTML 报告，含处理前后对比及详细数据。
 
 ---
 
@@ -95,7 +96,7 @@ bun start
   "providerSettings": {
     "antigravity": {
       "apiKey": "YOUR_ANTIGRAVITY_TOKEN", // 留空，使用 TUI 内置登录功能
-      "modelName": "gemini-3-pro-image"
+      "modelName": "gemini-3-pro-image" // 或在 TUI 选择 (Manual Input) 输入自定义模型
     }
   }
 }
@@ -103,17 +104,20 @@ bun start
 
 ### 高级参数配置
 
-| 配置项                  | 类型     | 默认值     | 说明                                 |
-| :---------------------- | :------- | :--------- | :----------------------------------- |
-| `inputDir`              | `string` | `./input`  | 待处理图片目录                       |
-| `outputDir`             | `string` | `./output` | 结果输出目录                         |
-| `recursive`             | `bool`   | `true`     | 是否递归扫描子目录                   |
-| `budgetLimit`           | `number` | `0`        | 会话成本上限 (USD)，0 表示不限制     |
-| `debugLog`              | `bool`   | `false`    | 是否开启调试日志 (用于排查 API 问题) |
-| `renameRules.enabled`   | `bool`   | `false`    | 是否启用自动重命名                   |
-| `renameRules.timestamp` | `bool`   | `false`    | 输出文件名是否附加时间戳             |
-| `prompts.edit`          | `string` | (内置)     | Native 模式下的 AI 指令              |
-| `prompts.detect`        | `string` | (内置)     | Detection 模式下的 AI 指令           |
+| 配置项                  | 类型     | 默认值     | 说明                                    |
+| :---------------------- | :------- | :--------- | :-------------------------------------- |
+| `inputDir`              | `string` | `./input`  | 待处理图片目录                          |
+| `outputDir`             | `string` | `./output` | 结果输出目录                            |
+| `recursive`             | `bool`   | `true`     | 是否递归扫描子目录                      |
+| `outputFormat`          | `enum`   | `original` | 结果图片格式 (original, png, jpg, webp) |
+| `preserveStructure`     | `bool`   | `true`     | 是否保持输入目录的层级结构              |
+| `concurrency`           | `number` | `1`        | 并发处理任务数 (建议 1-5)               |
+| `budgetLimit`           | `number` | `0`        | 会话成本上限 (USD)，0 表示不限制        |
+| `debugLog`              | `bool`   | `false`    | 是否开启调试日志 (用于排查 API 问题)    |
+| `renameRules.enabled`   | `bool`   | `false`    | 是否启用自动重命名                      |
+| `renameRules.timestamp` | `bool`   | `false`    | 输出文件名是否附加时间戳                |
+| `prompts.edit`          | `string` | (内置)     | Native 模式下的 AI 指令                 |
+| `prompts.detect`        | `string` | (内置)     | Detection 模式下的 AI 指令              |
 
 ---
 
