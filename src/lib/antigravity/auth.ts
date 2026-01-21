@@ -22,6 +22,27 @@ function getTokenFilePath(): string {
   return join(getConfigDir(), TOKEN_FILE);
 }
 
+/**
+ * 尝试从旧路径迁移 Token 文件
+ */
+function migrateOldToken(): void {
+  const oldTokenPath = join(process.cwd(), TOKEN_FILE);
+  const newTokenPath = getTokenFilePath();
+  
+  if (existsSync(oldTokenPath) && !existsSync(newTokenPath)) {
+    try {
+      const oldContent = readFileSync(oldTokenPath, "utf-8");
+      writeFileSync(newTokenPath, oldContent, "utf-8");
+      // 迁移成功后删除旧文件
+      const { unlinkSync } = require("fs");
+      unlinkSync(oldTokenPath);
+      console.log(`✅ 已将 Token 迁移至: ${newTokenPath}`);
+    } catch (e) {
+      console.warn(`⚠️ Token 迁移失败: ${e}`);
+    }
+  }
+}
+
 // ============ Types ============
 export interface TokenStore {
   access_token: string;
@@ -198,6 +219,9 @@ export function saveToken(token: TokenStore) {
 }
 
 export function loadToken(): TokenStore | null {
+  // 尝试迁移旧 Token
+  migrateOldToken();
+  
   const path = getTokenFilePath();
   if (!existsSync(path)) return null;
   try {

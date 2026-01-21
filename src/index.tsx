@@ -9,6 +9,14 @@ import { BatchProcessor } from "./lib/batch-processor";
 import { createLogger } from "./lib/logger";
 import { loginWithAntigravity, loadToken } from "./lib/antigravity/auth";
 
+// ============ 依赖检测 ============
+let sharpAvailable = true;
+try {
+  require("sharp");
+} catch {
+  sharpAvailable = false;
+}
+
 type Screen = "menu" | "config" | "process" | "preview" | "done";
 
 interface MenuItem {
@@ -149,6 +157,15 @@ const App: React.FC = () => {
       {status && (
         <Box marginBottom={1}>
           <Text color="yellow">{status}</Text>
+        </Box>
+      )}
+
+      {/* Sharp 依赖缺失警告 */}
+      {screen === "menu" && !sharpAvailable && (
+        <Box marginBottom={1} borderStyle="round" borderColor="yellow" flexDirection="column" paddingX={1}>
+          <Text color="yellow" bold>⚠️  缺少依赖: sharp</Text>
+          <Text color="yellow">本地图像修复功能需要 sharp 模块。请运行:</Text>
+          <Text color="cyan" bold>  bun add sharp</Text>
         </Box>
       )}
 

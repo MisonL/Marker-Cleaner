@@ -118,9 +118,33 @@ function migrateOldConfig(): void {
     try {
       const oldContent = readFileSync(oldConfigPath, "utf-8");
       writeFileSync(newConfigPath, oldContent, "utf-8");
-      console.log(`✅ 已将旧配置迁移至: ${newConfigPath}`);
+      // 迁移成功后删除旧文件
+      const { unlinkSync } = require("fs");
+      unlinkSync(oldConfigPath);
+      console.log(`✅ 已将配置迁移至: ${newConfigPath}`);
     } catch (e) {
       console.warn(`⚠️ 配置迁移失败: ${e}`);
+    }
+  }
+}
+
+/**
+ * 尝试从旧路径迁移进度文件
+ */
+function migrateOldProgress(): void {
+  const oldProgressPath = join(process.cwd(), PROGRESS_FILE);
+  const newProgressPath = join(getConfigDir(), PROGRESS_FILE);
+  
+  if (existsSync(oldProgressPath) && !existsSync(newProgressPath)) {
+    try {
+      const oldContent = readFileSync(oldProgressPath, "utf-8");
+      writeFileSync(newProgressPath, oldContent, "utf-8");
+      // 迁移成功后删除旧文件
+      const { unlinkSync } = require("fs");
+      unlinkSync(oldProgressPath);
+      console.log(`✅ 已将进度迁移至: ${newProgressPath}`);
+    } catch (e) {
+      console.warn(`⚠️ 进度迁移失败: ${e}`);
     }
   }
 }
@@ -219,6 +243,9 @@ export interface Progress {
  * 加载处理进度
  */
 export function loadProgress(): Progress {
+  // 尝试迁移旧进度
+  migrateOldProgress();
+  
   const progressPath = join(getConfigDir(), PROGRESS_FILE);
 
   if (!existsSync(progressPath)) {

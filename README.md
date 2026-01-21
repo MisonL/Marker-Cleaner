@@ -24,7 +24,13 @@ bun install
 
 ### 2. 配置 API Key
 
-首次运行会自动生成 `marker-cleaner.json` 配置文件。编辑它填入你的 API Key：
+首次运行会自动生成配置文件，位置如下：
+
+- **macOS**: `~/.marker-cleaner/marker-cleaner.json`
+- **Linux**: `~/.config/marker-cleaner/marker-cleaner.json`
+- **Windows**: `%APPDATA%/marker-cleaner/marker-cleaner.json`
+
+编辑配置文件填入你的 API Key：
 
 ```json
 {
@@ -32,6 +38,8 @@ bun install
   "modelName": "gemini-2.5-flash-image"
 }
 ```
+
+> **注意**: 如从旧版本升级，首次运行会自动将旧配置迁移到新位置。
 
 ### 3. 准备图片
 
@@ -59,7 +67,7 @@ bun start
 
 ## 📝 自定义 Prompt
 
-在 `marker-cleaner.json` 中编辑：
+在配置文件（位于平台对应的配置目录）中编辑：
 
 ```json
 {
