@@ -1,3 +1,5 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"; // Added imports
+import { dirname, extname, join } from "node:path"; // Added imports
 import { Box, Text, render, useApp, useInput } from "ink";
 import SelectInput from "ink-select-input";
 import Spinner from "ink-spinner";
@@ -6,6 +8,10 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import { createProvider } from "./lib/ai";
 import { loadToken, loginWithAntigravity } from "./lib/antigravity/auth";
+import { AntigravityProvider, type QuotaStatus } from "./lib/antigravity/provider";
+function isAntigravityProvider(provider: unknown): provider is AntigravityProvider {
+  return provider instanceof AntigravityProvider;
+}
 import { BatchProcessor } from "./lib/batch-processor";
 import { type Config, loadConfig, resetConfig, saveConfig } from "./lib/config-manager";
 import { createLogger } from "./lib/logger";
@@ -19,11 +25,12 @@ try {
   sharpAvailable = false;
 }
 
-type Screen = "menu" | "config" | "process" | "preview" | "done";
+type Screen = "menu" | "config" | "process" | "done";
 
 interface MenuItem {
   label: string;
   value: string;
+  icon?: string;
 }
 
 const App: React.FC = () => {
@@ -34,15 +41,17 @@ const App: React.FC = () => {
   const [progress, setProgress] = useState({ current: 0, total: 0, file: "" });
   const [cost, setCost] = useState(0);
   const [thumbnail, setThumbnail] = useState("");
-  const [lastStats, setLastStats] = useState<{ tokens?: { input: number, output: number }, duration?: number }>({});
+  const [lastStats, setLastStats] = useState<{
+    tokens?: { input: number; output: number };
+    duration?: number;
+  }>({});
   const [error, setError] = useState("");
 
   const menuItems: MenuItem[] = [
-    { label: "🚀 开始处理", value: "start" },
-    { label: `👁️  预览模式 (处理前 ${config.previewCount} 张)`, value: "preview" },
-    { label: "⚙️  配置设置", value: "config" },
-    { label: "🔄 恢复默认配置", value: "reset" },
-    { label: "🚪 退出", value: "exit" },
+    { label: "🚀 开始处理", value: "start", icon: "🚀" },
+    { label: "⚙️  配置设置", value: "settings", icon: "⚙️" },
+    { label: "🔄 恢复默认配置", value: "reset", icon: "🔄" },
+    { label: "🚪 退出", value: "exit", icon: "🚪" },
   ];
 
   const handleMenuSelect = async (item: MenuItem) => {
@@ -51,11 +60,7 @@ const App: React.FC = () => {
         setScreen("process");
         await runProcess(false);
         break;
-      case "preview":
-        setScreen("preview");
-        await runProcess(true);
-        break;
-      case "config":
+      case "settings":
         setScreen("config");
         break;
       case "reset": {
@@ -99,7 +104,7 @@ const App: React.FC = () => {
             setLastStats({ tokens: stats.lastTaskTokens, duration: stats.lastTaskDuration });
           }
           if (stats?.lastTaskThumbnail) {
-              setThumbnail(renderImageToTerminal(stats.lastTaskThumbnail));
+            setThumbnail(renderImageToTerminal(stats.lastTaskThumbnail));
           }
         },
         onCostUpdate: (newCost) => {
@@ -122,12 +127,21 @@ const App: React.FC = () => {
   };
 
   useInput((input, key) => {
-    if (key.escape || input.toLowerCase() === "q") {
+    const lowerInput = input.toLowerCase();
+
+    if (key.escape || lowerInput === "q") {
       if (screen !== "menu") {
         setScreen("menu");
       } else {
         exit();
       }
+    }
+
+    // 快捷键支持 (主菜单)
+    if (screen === "menu") {
+      if (lowerInput === "s" && menuItems[0]) handleMenuSelect(menuItems[0]); // Start
+      if (lowerInput === "c" && menuItems[1]) handleMenuSelect(menuItems[1]); // Config/Settings
+      if (lowerInput === "r" && menuItems[2]) handleMenuSelect(menuItems[2]); // Reset
     }
   });
 
@@ -219,7 +233,7 @@ const App: React.FC = () => {
                   <>
                     <Text color="red">当前 {providerLabel} 未配置 API Key。</Text>
                     {hasToken ? (
-                      <Text color="green" bold>
+                      <Text color="cyan" bold>
                         💡 检测到您已登录 Antigravity，请在配置中切换 Provider 即可直接使用！
                       </Text>
                     ) : (
@@ -259,13 +273,13 @@ const App: React.FC = () => {
         />
       )}
 
-      {(screen === "process" || screen === "preview") && (
+      {screen === "process" && (
         <Box flexDirection="column">
           <Box>
             <Text color="green">
               <Spinner type="dots" />
             </Text>
-            <Text> 正在处理 {screen === "preview" ? "(预览模式)" : ""}...</Text>
+            <Text> 正在处理 ...</Text>
           </Box>
           {progress.total > 0 && (
             <Box marginTop={1} flexDirection="column">
@@ -273,7 +287,7 @@ const App: React.FC = () => {
                 进度: {progress.current}/{progress.total}
               </Text>
               <Text dimColor>当前: {progress.file}</Text>
-              
+
               {thumbnail && (
                 <Box borderStyle="single" borderColor="gray" paddingX={1} marginBottom={0}>
                   <Text>{thumbnail}</Text>
@@ -282,19 +296,16 @@ const App: React.FC = () => {
 
               {lastStats.tokens && (
                 <Text color="cyan">
-                  ⚡ 上个任务: {lastStats.tokens.input + lastStats.tokens.output} tokens ({lastStats.tokens.input} In / {lastStats.tokens.output} Out)
+                  ⚡ 上个任务: {lastStats.tokens.input + lastStats.tokens.output} tokens (
+                  {lastStats.tokens.input} In / {lastStats.tokens.output} Out)
                 </Text>
               )}
               {lastStats.duration !== undefined && (
-                <Text color="gray">
-                  ⏱️ 耗时: {formatDuration(lastStats.duration)}
-                </Text>
+                <Text color="gray">⏱️ 耗时: {formatDuration(lastStats.duration)}</Text>
               )}
               <Box marginTop={1}>
                 <Text color="yellow">💰 累计成本: ${cost.toFixed(4)}</Text>
-                {config.budgetLimit > 0 && (
-                  <Text dimColor> (上限: ${config.budgetLimit})</Text>
-                )}
+                {config.budgetLimit > 0 && <Text dimColor> (上限: ${config.budgetLimit})</Text>}
               </Box>
             </Box>
           )}
@@ -346,32 +357,41 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
   const [authState, setAuthState] = useState(loadToken());
   const [loginMsg, setLoginMsg] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [quota, setQuota] = useState<any>(null);
+  const [quota, setQuota] = useState<QuotaStatus | null>(null);
 
   useEffect(() => {
     if (editConfig.provider === "antigravity" && authState) {
-        const provider = createProvider(editConfig) as any;
-        if (provider.getQuota) {
-            provider.getQuota().then(setQuota).catch(() => {});
-        }
+      const provider = createProvider(editConfig);
+      if (isAntigravityProvider(provider)) {
+        provider
+          .getQuota()
+          .then(setQuota)
+          .catch(() => {});
+      }
     }
-  }, [editConfig.provider, authState]);
+  }, [editConfig, authState]);
 
+  /* biome-ignore lint/suspicious/noExplicitAny: Dynamic configuration access */
   const getNestedValue = (obj: any, path: string) => {
-    return path.split('.').reduce((acc, part) => acc?.[part], obj);
+    return path.split(".").reduce((acc, part) => acc?.[part], obj);
   };
 
+  /* biome-ignore lint/suspicious/noExplicitAny: Dynamic configuration update */
   const setNestedValue = (obj: any, path: string, value: any) => {
-    const parts = path.split('.');
+    const parts = path.split(".");
     const newObj = { ...obj };
     let current = newObj;
     for (let i = 0; i < parts.length - 1; i++) {
-      const part = parts[i]!;
-      current[part] = { ...current[part] };
-      current = current[part];
+      const part = parts[i];
+      if (part) {
+        current[part] = { ...current[part] };
+        current = current[part];
+      }
     }
-    const lastPart = parts[parts.length - 1]!;
-    current[lastPart] = value;
+    const lastPart = parts[parts.length - 1];
+    if (lastPart) {
+      current[lastPart] = value;
+    }
     return newObj;
   };
 
@@ -417,10 +437,9 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
     { key: "inputDir", label: "输入目录", type: "text" },
     { key: "outputDir", label: "输出目录", type: "text" },
     { key: "recursive", label: "递归遍历", type: "boolean" },
-    { key: "previewCount", label: "预览数量", type: "text" },
     { key: "budgetLimit", label: "成本熔断 (USD)", type: "text" },
     { key: "debugLog", label: "Debug 日志", type: "boolean" },
-    
+
     // Advanced Fields
     { key: "renameRules.enabled", label: "启用自动重命名", type: "boolean", advanced: true },
     { key: "renameRules.suffix", label: "命名后缀", type: "text", advanced: true },
@@ -429,7 +448,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
     { key: "prompts.detect", label: "Detection 模式 Prompt", type: "text", advanced: true },
   ];
 
-  const visibleFields = fields.filter(f => !f.advanced || showAdvanced);
+  const visibleFields = fields.filter((f) => !f.advanced || showAdvanced);
 
   useInput((input, key) => {
     if (isEditing) {
@@ -459,12 +478,12 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
           if (nextIndex === -1) nextIndex = -1;
           nextIndex = (nextIndex + 1) % options.length;
           const nextVal = options[nextIndex];
-          
+
           if (nextVal !== undefined) {
             if (configKey === "provider") {
               const nextProvider = nextVal as Config["provider"];
               const prevProvider = val as Config["provider"];
-              
+
               const updatedSettings = {
                 ...editConfig.providerSettings,
                 [prevProvider]: {
@@ -474,11 +493,11 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
                 },
               };
               const nextSettings = updatedSettings[nextProvider];
-              
+
               let newModelName = nextSettings.modelName || "";
               const newProviderOptions = getModelOptions(nextProvider);
               if (newProviderOptions.length > 0 && !newProviderOptions.includes(newModelName)) {
-                 newModelName = newProviderOptions[0] || "";
+                newModelName = newProviderOptions[0] || "";
               }
 
               setEditConfig((prev) => ({
@@ -500,16 +519,16 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
     } else if (input === "a") {
       setShowAdvanced(!showAdvanced);
     } else if (input === "r" && showAdvanced) {
-        // Reset Prompts
-        const defaultPrompt = resetConfig().prompts;
-        setEditConfig(prev => ({
-            ...prev,
-            prompts: defaultPrompt
-        }));
-        setLoginMsg("✅ Prompts 已恢复默认");
+      // Reset Prompts
+      const defaultPrompt = resetConfig().prompts;
+      setEditConfig((prev) => ({
+        ...prev,
+        prompts: defaultPrompt,
+      }));
+      setLoginMsg("✅ Prompts 已恢复默认");
     } else if (input === "o") {
-        logger.openLogFolder();
-        setLoginMsg("📂 已尝试打开日志文件夹");
+      logger.openLogFolder();
+      setLoginMsg("📂 已尝试打开日志文件夹");
     } else if (input === "l" && editConfig.provider === "antigravity") {
       setLoginMsg("⌛️ 正在打开浏览器登录 Auth...");
       loginWithAntigravity()
@@ -560,21 +579,32 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
           </Text>
           {authState?.email && <Text>Email: {authState.email}</Text>}
           {authState?.project_id && <Text>Project: {authState.project_id}</Text>}
+
           {quota && (
             <Box flexDirection="column" marginTop={1}>
-                <Text bold color="yellow">Quota Status:</Text>
-                {quota.quotaTotal && (
+              {quota.tier && (
+                <Text bold color="magenta">
+                  Current Tier: {quota.tier}
+                </Text>
+              )}
+              {quota.quotaTotal && (
+                <Box flexDirection="column">
+                  <Text bold color="yellow">
+                    Quota Status:
+                  </Text>
+                  <Text>
+                    • API Quota: {quota.quotaRemaining} / {quota.quotaTotal}
+                  </Text>
+                  {quota.promptCreditsTotal && (
                     <Text>
-                        • API Quota: {quota.quotaRemaining} / {quota.quotaTotal} (Rem / Total)
+                      • Prompt Credits: {quota.promptCreditsRemaining} / {quota.promptCreditsTotal}
                     </Text>
-                )}
-                {quota.promptCreditsTotal && (
-                    <Text>
-                        • Prompt Credits: {quota.promptCreditsRemaining} / {quota.promptCreditsTotal}
-                    </Text>
-                )}
+                  )}
+                </Box>
+              )}
             </Box>
           )}
+
           <Box marginTop={1}>
             <Text>
               {loginMsg || (authState ? "按 'L' 重新登录" : "👉 按 'L' 键进行浏览器登录")}
@@ -597,18 +627,18 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
         if (field.key === "apiKey" && value && !isEditing) {
           displayValue = "********";
         }
-        
+
         // 渲染辅助信息组件
         let hintComponent: React.ReactNode = null;
         if (field.key === "modelName" && isFocused) {
-            const isNative = String(value).toLowerCase().includes("image");
-            hintComponent = (
-                <Box marginLeft={2}>
-                    <Text color={isNative ? "green" : "cyan"} dimColor>
-                         {isNative ? "🎨 Native Mode (原生生成)" : "⚡ Detection Mode (视觉检测)"}
-                    </Text>
-                </Box>
-            );
+          const isNative = String(value).toLowerCase().includes("image");
+          hintComponent = (
+            <Box marginLeft={2}>
+              <Text color={isNative ? "green" : "cyan"} dimColor>
+                {isNative ? "🎨 Native Mode (原生生成)" : "⚡ Detection Mode (视觉检测)"}
+              </Text>
+            </Box>
+          );
         }
 
         if (field.key === "baseUrl" && !value) {
@@ -621,11 +651,11 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
           }
         }
         if (field.key === "modelName" && !value) {
-             displayValue = "(未设置)";
+          displayValue = "(未设置)";
         }
-        
+
         if (field.type === "text" && !isEditing && displayValue.length > 40) {
-            displayValue = displayValue.slice(0, 37) + "...";
+          displayValue = `${displayValue.slice(0, 37)}...`;
         }
 
         let valComponent: React.ReactNode;
@@ -663,7 +693,9 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
                 value={String(value ?? "")}
                 onChange={(val) => {
                   if (field.key === "previewCount" || field.key === "budgetLimit") {
-                    setEditConfig((prev) => setNestedValue(prev, field.key, Number.parseFloat(val) || 0));
+                    setEditConfig((prev) =>
+                      setNestedValue(prev, field.key, Number.parseFloat(val) || 0),
+                    );
                   } else {
                     setEditConfig((prev) => setNestedValue(prev, field.key, val));
                   }
@@ -679,13 +711,13 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
         return (
           <Box key={field.key} flexDirection="column">
             <Box>
-                <Text color={isFocused ? "cyan" : undefined}>
+              <Text color={isFocused ? "cyan" : undefined}>
                 {isFocused ? "▶ " : "  "}
                 {field.label}:{" "}
-                </Text>
-                {valComponent}
+              </Text>
+              {valComponent}
             </Box>
-            {hintComponent} 
+            {hintComponent}
           </Box>
         );
       })}
@@ -694,15 +726,37 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
       <Box marginTop={2} flexDirection="column">
         <Text dimColor>按 Esc 返回 | 按 ↑↓ 导航 | 按 Enter 确认/编辑</Text>
         <Box>
-            <Text dimColor>按 </Text><Text bold color="cyan">S</Text><Text dimColor> 保存 | 按 </Text>
-            <Text bold color="cyan">A</Text><Text dimColor> {showAdvanced ? "折叠" : "展开"}高级设置 | 按 </Text>
-            <Text bold color="cyan">O</Text><Text dimColor> 打开日志文件夹</Text>
+          <Text dimColor>按 </Text>
+          <Text bold color="cyan">
+            S
+          </Text>
+          <Text dimColor> 保存 | 按 </Text>
+          <Text bold color="cyan">
+            A
+          </Text>
+          <Text dimColor> {showAdvanced ? "折叠" : "展开"}高级设置 | 按 </Text>
+          <Text bold color="cyan">
+            O
+          </Text>
+          <Text dimColor> 打开日志文件夹</Text>
         </Box>
         {showAdvanced && (
-            <Text dimColor>按 <Text bold color="red">R</Text> 恢复所有 Prompt 为默认值</Text>
+          <Text dimColor>
+            按{" "}
+            <Text bold color="red">
+              R
+            </Text>{" "}
+            恢复所有 Prompt 为默认值
+          </Text>
         )}
         {editConfig.provider === "antigravity" && (
-            <Text dimColor>按 <Text bold color="cyan">L</Text> 登录 Antigravity 账号</Text>
+          <Text dimColor>
+            按{" "}
+            <Text bold color="cyan">
+              L
+            </Text>{" "}
+            登录 Antigravity 账号
+          </Text>
         )}
       </Box>
     </Box>

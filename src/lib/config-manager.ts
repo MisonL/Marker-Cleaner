@@ -42,7 +42,7 @@ export const ConfigSchema = z.object({
   outputDir: z.string().default("./output"),
   recursive: z.boolean().default(true),
   preserveStructure: z.boolean().default(true),
-  
+
   // 重命名规则
   renameRules: RenameRulesSchema.default({
     enabled: true,
@@ -90,7 +90,7 @@ export const ConfigSchema = z.object({
   previewCount: z.number().min(0).default(3),
   debugLog: z.boolean().default(false),
   budgetLimit: z.number().default(0), // 0 means disabled, in USD
-  
+
   // 定价配置
   pricing: PricingSchema.default({
     inputTokenPer1M: 0.15,

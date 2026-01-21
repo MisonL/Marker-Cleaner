@@ -97,14 +97,17 @@ export function renderImageToTerminal(buffer: Buffer): string {
 
   // TODO: 后续可以加入为 WezTerm/Sixel 协议的适配
   // 目前非 iTerm2 环境提供简单的标识或静默
-  return "🖼️ [Image]"; 
+  return "🖼️ [Image]";
 }
 
 /**
  * 检测是否为 iTerm2
  */
 export function isIterm2(): boolean {
-  return !!process.env.TERM_PROGRAM && (process.env.TERM_PROGRAM === "iTerm.app" || process.env.TERM_PROGRAM === "WezTerm");
+  return (
+    !!process.env.TERM_PROGRAM &&
+    (process.env.TERM_PROGRAM === "iTerm.app" || process.env.TERM_PROGRAM === "WezTerm")
+  );
 }
 
 /**

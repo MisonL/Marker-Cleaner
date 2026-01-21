@@ -1,5 +1,6 @@
 import {
   type GenerateContentResult,
+  type GenerationConfig,
   GoogleGenerativeAI,
   type RequestOptions,
 } from "@google/generative-ai";
@@ -35,9 +36,10 @@ export class GoogleProvider implements AIProvider {
       const mimeType = detectMimeType(imageBuffer);
 
       // 如果模型名称包含 "image"，开启多模态生成模式
-      const generationConfig: any = {};
+      const generationConfig: GenerationConfig = {};
       if (this.modelName.toLowerCase().includes("image")) {
-        generationConfig.responseModalities = ["TEXT", "IMAGE"];
+        /* biome-ignore lint/suspicious/noExplicitAny: SDK type missing responseModalities */
+        (generationConfig as any).responseModalities = ["TEXT", "IMAGE"];
       }
 
       const model = this.client.getGenerativeModel(

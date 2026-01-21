@@ -3,10 +3,10 @@ import { formatDuration } from "./utils";
 
 export interface ReportItem {
   file: string;
-  inputTokens: number;
-  outputTokens: number;
-  cost: number;
-  duration: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cost?: number;
+  duration?: number;
   success: boolean;
   error?: string;
   inputBuffer?: Buffer;
@@ -15,7 +15,10 @@ export interface ReportItem {
 
 export function generateHtmlReport(outputPath: string, data: ReportItem[]) {
   const totalCost = data.reduce((acc, item) => acc + (item.cost || 0), 0);
-  const totalTokens = data.reduce((acc, item) => acc + (item.inputTokens || 0) + (item.outputTokens || 0), 0);
+  const totalTokens = data.reduce(
+    (acc, item) => acc + (item.inputTokens || 0) + (item.outputTokens || 0),
+    0,
+  );
   const totalDuration = data.reduce((acc, item) => acc + (item.duration || 0), 0);
   const successCount = data.filter((item) => item.success).length;
 
@@ -95,7 +98,9 @@ export function generateHtmlReport(outputPath: string, data: ReportItem[]) {
         </header>
 
         <div class="item-list">
-            ${data.map((item, idx) => `
+            ${data
+              .map(
+                (item, idx) => `
             <div class="item-card">
                 <div class="item-header">
                     <div class="item-title">${item.file}</div>
@@ -103,7 +108,9 @@ export function generateHtmlReport(outputPath: string, data: ReportItem[]) {
                         ${item.success ? "SUCCESS" : "FAILED"}
                     </div>
                 </div>
-                ${item.success ? `
+                ${
+                  item.success
+                    ? `
                 <div class="image-comparison">
                     <div class="img-container">
                         <div class="img-label">Before</div>
@@ -115,15 +122,19 @@ export function generateHtmlReport(outputPath: string, data: ReportItem[]) {
                     </div>
                 </div>
                 <div class="item-footer">
-                    <span>Tokens: ${item.inputTokens + item.outputTokens} (${item.inputTokens} In / ${item.outputTokens} Out)</span>
-                    <span>Cost: $${item.cost.toFixed(5)}</span>
-                    <span>Time: ${item.duration}ms</span>
+                    <span>Tokens: ${(item.inputTokens ?? 0) + (item.outputTokens ?? 0)} (${item.inputTokens ?? 0} In / ${item.outputTokens ?? 0} Out)</span>
+                    <span>Cost: $${(item.cost ?? 0).toFixed(5)}</span>
+                    <span>Time: ${item.duration ?? 0}ms</span>
                 </div>
-                ` : `
+                `
+                    : `
                 <div class="error-msg">Error: ${item.error}</div>
-                `}
+                `
+                }
             </div>
-            `).join("")}
+            `,
+              )
+              .join("")}
         </div>
     </div>
 </body>

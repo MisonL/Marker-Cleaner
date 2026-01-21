@@ -5,7 +5,7 @@ import { join } from "node:path";
 import open from "open";
 
 import { getConfigDir } from "../config-manager";
-import { CLIENT_ID, CLIENT_SECRET } from "./constants";
+import { ANTIGRAVITY_ENDPOINT, CLIENT_ID, CLIENT_SECRET } from "./constants";
 
 // ============ Constants ============
 const REDIRECT_URI = "http://localhost:51121/oauth-callback";
@@ -187,7 +187,7 @@ async function exchangeToken(code: string, verifier: string): Promise<TokenStore
 }
 
 async function fetchProjectID(accessToken: string): Promise<string> {
-  const url = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
+  const url = `${ANTIGRAVITY_ENDPOINT}/v1internal:loadCodeAssist`;
   const res = await fetch(url, {
     method: "POST",
     headers: {

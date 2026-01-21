@@ -3,11 +3,13 @@ import { basename, dirname, extname, join, relative } from "node:path";
 import { cleanMarkersLocal, convertFormat, getOutputExtension } from "./cleaner";
 import type { Config, Progress } from "./config-manager";
 import { loadProgress, saveProgress } from "./config-manager";
+import { type ReportItem, generateHtmlReport } from "./report-generator";
 import type { AIProvider, BatchTask, Logger } from "./types";
-import { generateHtmlReport } from "./report-generator";
 import { formatDuration } from "./utils";
 
 const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"];
+
+export type ConflictDecision = "skip" | "overwrite" | "rename";
 
 export interface BatchProcessorOptions {
   config: Config;
@@ -22,9 +24,10 @@ export interface BatchProcessorOptions {
       lastTaskDuration?: number;
       lastTaskThumbnail?: Buffer;
       accumulatedCost?: number;
-    }
+    },
   ) => void;
   onCostUpdate?: (cost: number) => void;
+  onConflict?: (file: string) => Promise<ConflictDecision>;
 }
 
 export class BatchProcessor {
@@ -34,7 +37,8 @@ export class BatchProcessor {
   private progress: Progress;
   private onProgress?: BatchProcessorOptions["onProgress"];
   private onCostUpdate?: (cost: number) => void;
-  private reportData: any[] = [];
+  private onConflict?: BatchProcessorOptions["onConflict"];
+  private reportData: ReportItem[] = [];
 
   constructor(options: BatchProcessorOptions) {
     this.config = options.config;
@@ -42,6 +46,7 @@ export class BatchProcessor {
     this.logger = options.logger;
     this.onProgress = options.onProgress;
     this.onCostUpdate = options.onCostUpdate;
+    this.onConflict = options.onConflict;
     this.progress = loadProgress();
   }
 
@@ -93,7 +98,7 @@ export class BatchProcessor {
     const dirName = dirname(relativePath);
 
     const newExt = getOutputExtension(this.config.outputFormat, ext);
-    
+
     const rules = this.config.renameRules;
     let suffix = "";
 
@@ -101,7 +106,8 @@ export class BatchProcessor {
       if (rules.timestamp) {
         // Generate timestamp YYYYMMDD_HHmmss
         const now = new Date();
-        const timestamp = now.toISOString()
+        const timestamp = now
+          .toISOString()
           .replace(/[-:T]/g, "")
           .slice(0, 14) // YYYYMMDDHHMMSS
           .replace(/(\d{8})(\d{6})/, "$1_$2"); // YYYYMMDD_HHMMSS
@@ -148,8 +154,29 @@ export class BatchProcessor {
       const taskStartTime = Date.now();
       this.logger.info(`[${current}/${total}] 处理: ${task.relativePath}`);
 
+      let finalOutputPath = task.absoluteOutputPath;
+
+      // 冲突检测 (基础重名检测，不带时间戳也可以触发)
+      if (existsSync(finalOutputPath)) {
+        if (this.onConflict) {
+          const decision = await this.onConflict(task.relativePath);
+          if (decision === "skip") {
+            this.logger.info(`⏭️  用户选择跳过: ${task.relativePath}`);
+            continue;
+          }
+
+          if (decision === "rename") {
+            finalOutputPath = this.generateUniquePath(finalOutputPath);
+            this.logger.info(`📝 自动重命名为: ${basename(finalOutputPath)}`);
+          } else {
+            this.logger.info(`⚠️  用户选择覆盖: ${task.relativePath}`);
+          }
+        }
+      }
+
       try {
-        const result = await this.processOne(task, previewOnly);
+        const inputBuffer = readFileSync(task.absoluteInputPath);
+        const result = await this.processOne(inputBuffer, task.relativePath);
         const taskEndTime = Date.now();
         const duration = taskEndTime - taskStartTime;
 
@@ -172,14 +199,14 @@ export class BatchProcessor {
 
         // 收集报告数据
         this.reportData.push({
-            file: task.relativePath,
-            inputTokens: result.inputTokens,
-            outputTokens: result.outputTokens,
-            cost: taskCost,
-            duration: duration,
-            success: true,
-            outputBuffer: result.outputBuffer,
-            inputBuffer: readFileSync(task.absoluteInputPath) // 用于后期生成对比报表
+          file: task.relativePath,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens,
+          cost: taskCost,
+          duration: duration,
+          success: true,
+          outputBuffer: result.outputBuffer,
+          inputBuffer: readFileSync(task.absoluteInputPath), // 用于后期生成对比报表
         });
 
         if (!previewOnly) {
@@ -191,39 +218,55 @@ export class BatchProcessor {
           this.progress.processedFiles.push(task.relativePath);
           saveProgress(this.progress);
         }
+
+        // 确保输出目录存在并保存文件
+        if (result.outputBuffer) {
+          const dir = dirname(finalOutputPath);
+          if (!existsSync(dir)) {
+            mkdirSync(dir, { recursive: true });
+          }
+          writeFileSync(finalOutputPath, result.outputBuffer);
+          this.logger.debug(`已保存: ${finalOutputPath}`);
+        }
       } catch (error) {
         this.logger.error(`处理失败: ${task.relativePath} - ${error}`);
         this.reportData.push({
-            file: task.relativePath,
-            success: false,
-            error: String(error)
+          file: task.relativePath,
+          success: false,
+          error: String(error),
         });
       }
     }
 
     this.logger.info(`✅ 处理完成: ${current}/${total}`);
     this.logger.info(`💰 会话累计成本: $${sessionCost.toFixed(4)}`);
-    
+
     if (this.reportData.length > 0 && !previewOnly) {
-        this.generateReport();
+      this.generateReport();
     }
   }
 
   private generateReport() {
     const reportName = `report_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.html`;
+
+    // Ensure output directory exists before writing report
+    if (!existsSync(this.config.outputDir)) {
+      mkdirSync(this.config.outputDir, { recursive: true });
+    }
+
     const reportPath = join(this.config.outputDir, reportName);
     this.logger.info(`📊 正在生成处理报告: ${reportName}`);
-    
+
     try {
-        generateHtmlReport(reportPath, this.reportData);
+      generateHtmlReport(reportPath, this.reportData);
     } catch (error) {
-        this.logger.error(`生成报告失败: ${error}`);
+      this.logger.error(`生成报告失败: ${error}`);
     }
   }
 
   private async processOne(
-    task: BatchTask,
-    previewOnly = false,
+    inputBuffer: Buffer,
+    relativePath: string,
   ): Promise<{
     success: boolean;
     inputTokens: number;
@@ -231,8 +274,6 @@ export class BatchProcessor {
     isImageEdit: boolean;
     outputBuffer: Buffer;
   }> {
-    const inputBuffer = readFileSync(task.absoluteInputPath);
-
     // 选择 Prompt
     const prompt = this.provider.supportsImageEdit
       ? this.config.prompts.edit
@@ -265,18 +306,8 @@ export class BatchProcessor {
     outputBuffer = await convertFormat(
       outputBuffer,
       this.config.outputFormat,
-      extname(task.relativePath),
+      extname(relativePath),
     );
-
-    // 确保输出目录存在
-    const outputDir = dirname(task.absoluteOutputPath);
-    if (!existsSync(outputDir)) {
-      mkdirSync(outputDir, { recursive: true });
-    }
-
-    // 保存
-    writeFileSync(task.absoluteOutputPath, outputBuffer);
-    this.logger.debug(`已保存: ${task.absoluteOutputPath}`);
 
     return {
       success: true,
@@ -316,5 +347,21 @@ export class BatchProcessor {
       lastUpdated: new Date().toISOString(),
     };
     saveProgress(this.progress);
+  }
+
+  /**
+   * 生成唯一路径 (增加序号)
+   */
+  private generateUniquePath(originalPath: string): string {
+    const ext = extname(originalPath);
+    const base = originalPath.slice(0, originalPath.length - ext.length);
+    let counter = 1;
+    let newPath = originalPath;
+
+    while (existsSync(newPath)) {
+      newPath = `${base}_${counter}${ext}`;
+      counter++;
+    }
+    return newPath;
   }
 }

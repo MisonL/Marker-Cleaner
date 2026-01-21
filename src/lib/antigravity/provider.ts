@@ -3,8 +3,9 @@ import type { Config } from "../config-manager";
 import type { AIProvider, BoundingBox, ProcessResult } from "../types";
 import { detectMimeType, getPlatformInfo, parseBoxesFromText } from "../utils";
 import { getAccessToken, loadToken } from "./auth";
+import { ANTIGRAVITY_ENDPOINT } from "./constants";
 
-const ENDPOINT = "https://daily-cloudcode-pa.sandbox.googleapis.com";
+const ENDPOINT = ANTIGRAVITY_ENDPOINT;
 
 interface AntigravityContentPart {
   text?: string;
@@ -32,6 +33,15 @@ interface AntigravityResponsePayload {
     candidates: AntigravityCandidate[];
     usageMetadata: AntigravityUsageMetadata;
   };
+}
+
+export interface QuotaStatus {
+  quotaRemaining?: number;
+  quotaTotal?: number;
+  promptCreditsRemaining?: number;
+  promptCreditsTotal?: number;
+  email?: string;
+  tier?: string;
 }
 
 export class AntigravityProvider implements AIProvider {
@@ -97,7 +107,19 @@ export class AntigravityProvider implements AIProvider {
       });
 
       if (!response.ok) {
-        throw new Error(`Antigravity API Error ${response.status}: ${await response.text()}`);
+        const errorText = await response.text();
+        let errorMsg = `Antigravity API Error ${response.status}`;
+        try {
+          const errorJson = JSON.parse(errorText);
+          if (errorJson.error?.message) {
+            errorMsg += `: ${errorJson.error.message}`;
+          } else {
+            errorMsg += `: ${errorText}`;
+          }
+        } catch {
+          errorMsg += `: ${errorText}`;
+        }
+        throw new Error(errorMsg);
       }
 
       const result = (await response.json()) as AntigravityResponsePayload;
@@ -155,40 +177,42 @@ export class AntigravityProvider implements AIProvider {
 
     return { success: false, error: "Unknown response format" };
   }
-  async getQuota(): Promise<{
-    quotaRemaining?: number;
-    quotaTotal?: number;
-    promptCreditsRemaining?: number;
-    promptCreditsTotal?: number;
-    email?: string;
-  }> {
+  async getQuota(): Promise<QuotaStatus | null> {
     try {
       const token = await getAccessToken();
-      const response = await fetch(`${ENDPOINT}/v1internal:getUserStatus`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+      // Correct endpoint from reference repo
+      const response = await fetch(
+        `${ENDPOINT}/exa.language_server_pb.LanguageServerService/GetUserStatus`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
         },
-        body: JSON.stringify({}),
-      });
+      );
 
-      if (!response.ok) return {};
+      if (!response.ok) {
+        // Silently fail for quota to avoid error noise
+        return null;
+      }
 
-      const data = (await response.json()) as any;
-      // Based on Antigravity-Manager and research
-      // Typical structure contains "quotas" and "promptCredits"
+      /* biome-ignore lint/suspicious/noExplicitAny: Complex nested API response */
+      const data = (await response.json()) as { userStatus?: any; currentTier?: string };
       const status = data?.userStatus;
+
+      // Map data structure if available
       return {
         quotaRemaining: status?.quotas?.[0]?.remainingCount,
         quotaTotal: status?.quotas?.[0]?.totalCount,
         promptCreditsRemaining: status?.promptCredits?.[0]?.remainingCount,
         promptCreditsTotal: status?.promptCredits?.[0]?.totalCount,
         email: status?.email,
+        tier: data?.currentTier,
       };
     } catch (error) {
-       console.error("Failed to fetch quota:", error);
-       return {};
+      return null;
     }
   }
 }

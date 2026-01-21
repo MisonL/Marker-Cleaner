@@ -1,7 +1,16 @@
-import { appendFileSync, existsSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
-import { getConfigDir } from "./config-manager";
 import open from "open";
+import { getConfigDir } from "./config-manager";
 import type { Logger } from "./types";
 
 const LOG_FILE = "debug.log";
@@ -40,12 +49,12 @@ class LogManager {
   private cleanOldLogs() {
     try {
       const files = readdirSync(this.logDir)
-        .filter(f => f.startsWith("debug_") && f.endsWith(".log"))
-        .map(f => ({ name: f, time: statSync(join(this.logDir, f)).mtime.getTime() }))
+        .filter((f) => f.startsWith("debug_") && f.endsWith(".log"))
+        .map((f) => ({ name: f, time: statSync(join(this.logDir, f)).mtime.getTime() }))
         .sort((a, b) => b.time - a.time); // Newest first
 
       if (files.length > MAX_LOG_FILES) {
-        files.slice(MAX_LOG_FILES).forEach(f => {
+        files.slice(MAX_LOG_FILES).forEach((f) => {
           unlinkSync(join(this.logDir, f.name));
         });
       }
@@ -58,12 +67,12 @@ class LogManager {
     const timestamp = new Date().toISOString();
     const line = `[${timestamp}] [${level}] ${message}\n`;
     try {
-        if (!existsSync(this.logPath)) {
-            writeFileSync(this.logPath, "", "utf-8");
-        }
-        appendFileSync(this.logPath, line, "utf-8");
+      if (!existsSync(this.logPath)) {
+        writeFileSync(this.logPath, "", "utf-8");
+      }
+      appendFileSync(this.logPath, line, "utf-8");
     } catch (e) {
-        console.error("Failed to write log:", e);
+      console.error("Failed to write log:", e);
     }
   }
 
@@ -96,6 +105,6 @@ export function createLogger(debug: boolean): Logger & { openLogFolder: () => vo
     },
     openLogFolder() {
       logManager.openLogFolder();
-    }
+    },
   };
 }
