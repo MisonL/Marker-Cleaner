@@ -797,7 +797,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
                   configKey === "budgetLimit"
                 ) {
                   const numVal = Number.parseFloat(String(nextVal));
-                  if (!isNaN(numVal)) {
+                  if (!Number.isNaN(numVal)) {
                     finalVal = numVal;
                   }
                 }
