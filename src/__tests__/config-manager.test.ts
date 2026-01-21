@@ -32,7 +32,7 @@ describe("ConfigSchema", () => {
   });
 
   test("should accept valid output format values", () => {
-    const formats = ["original", "png", "jpg", "webp"];
+    const formats = ["original", "png", "jpg", "webp"] as const;
     for (const format of formats) {
       const config = ConfigSchema.parse({ outputFormat: format });
       expect(config.outputFormat).toBe(format);
