@@ -221,9 +221,9 @@ export function saveConfig(config: Config): void {
 /**
  * 恢复默认配置
  */
-export function resetConfig(cwd: string = process.cwd()): Config {
+export function resetConfig(): Config {
   const defaultConfig = getDefaultConfig();
-  saveConfig(defaultConfig, cwd);
+  saveConfig(defaultConfig);
   return defaultConfig;
 }
 
