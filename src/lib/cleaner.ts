@@ -28,11 +28,14 @@ export async function cleanMarkersLocal(
   const pixels = new Uint8Array(data);
 
   for (const box of boxes) {
-    // 将相对坐标转换为绝对像素坐标
-    const x1 = Math.floor(box.xmin * width);
-    const y1 = Math.floor(box.ymin * height);
-    const x2 = Math.ceil(box.xmax * width);
-    const y2 = Math.ceil(box.ymax * height);
+    // 将相对坐标转换为绝对像素坐标，并裁剪到图片边界
+    const x1 = Math.max(0, Math.floor(box.xmin * width));
+    const y1 = Math.max(0, Math.floor(box.ymin * height));
+    const x2 = Math.min(width, Math.ceil(box.xmax * width));
+    const y2 = Math.min(height, Math.ceil(box.ymax * height));
+
+    // 跳过无效区域
+    if (x1 >= x2 || y1 >= y2) continue;
 
     // 遍历区域内的每个像素
     for (let y = y1; y < y2; y++) {

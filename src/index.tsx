@@ -154,21 +154,58 @@ const FileSelectionScreen: React.FC<FileSelectionScreenProps> = ({
         )}
       </Box>
 
-      {/* 快捷键监听 */}
-      {(() => {
-        useInput((input, key) => {
-          if (key.tab) {
-            setMode(mode === "list" ? "manual" : "list");
-          }
-          if (key.escape) {
-            onCancel();
-          }
-        });
-        return null;
-      })()}
+      {/* 快捷键监听 - 移至组件顶层调用 */}
     </Box>
   );
-};
+
+  // Note: useInput should be called at component top level, not in IIFE
+}
+
+// 为 FileSelector 添加独立的 Hook wrapper
+function FileSelectorWithInput(props: {
+  files: string[];
+  value: string;
+  onSelect: (file: string) => void;
+  onCancel: () => void;
+}) {
+  const [mode, setMode] = useState<"list" | "manual">("list");
+  const [manualPath, setManualPath] = useState(props.value);
+
+  useInput((input, key) => {
+    if (key.tab) {
+      setMode(mode === "list" ? "manual" : "list");
+    }
+    if (key.escape) {
+      props.onCancel();
+    }
+  });
+
+  return (
+    <Box flexDirection="column">
+      {mode === "list" ? (
+        <SelectInput
+          items={props.files.map((f) => ({ label: f, value: f }))}
+          onSelect={(item) => props.onSelect(item.value)}
+        />
+      ) : (
+        <Box flexDirection="column">
+          <Box>
+            <Text>📁 手动输入路径: </Text>
+            <TextInput
+              value={manualPath}
+              onChange={setManualPath}
+              onSubmit={() => props.onSelect(manualPath)}
+            />
+          </Box>
+          <Box marginTop={1} flexDirection="column">
+            <Text dimColor>支持相对路径 (如 ./test.jpg) 或绝对路径</Text>
+            <Text dimColor>按 Enter 确认，按 Tab 切换回列表</Text>
+          </Box>
+        </Box>
+      )}
+    </Box>
+  );
+}
 
 interface MenuItem {
   label: string;

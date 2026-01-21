@@ -221,8 +221,14 @@ export function loadConfig(): Config {
     // 嵌套项合并
     if (parsed.prompts) merged.prompts = { ...defaultConfig.prompts, ...parsed.prompts };
     if (parsed.pricing) merged.pricing = { ...defaultConfig.pricing, ...parsed.pricing };
-    if (parsed.providerSettings)
-      merged.providerSettings = { ...defaultConfig.providerSettings, ...parsed.providerSettings };
+    if (parsed.providerSettings) {
+      // 深度合并 providerSettings，确保每个 provider 的字段都完整
+      merged.providerSettings = {
+        openai: { ...defaultConfig.providerSettings.openai, ...parsed.providerSettings.openai },
+        antigravity: { ...defaultConfig.providerSettings.antigravity, ...parsed.providerSettings.antigravity },
+        google: { ...defaultConfig.providerSettings.google, ...parsed.providerSettings.google },
+      };
+    }
 
     const retryResult = ConfigSchema.safeParse(merged);
     if (retryResult.success) {

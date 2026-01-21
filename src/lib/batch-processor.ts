@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, join, relative } from "node:path";
 import pLimit from "p-limit";
 import { cleanMarkersLocal, convertFormat, getOutputExtension } from "./cleaner";
@@ -72,7 +72,13 @@ export class BatchProcessor {
 
     for (const entry of entries) {
       const fullPath = join(currentDir, entry);
-      const stat = statSync(fullPath);
+      const stat = lstatSync(fullPath); // 使用 lstatSync 检测符号链接
+
+      // 跳过符号链接以防止无限递归
+      if (stat.isSymbolicLink()) {
+        this.logger.debug(`⏭️ 跳过符号链接: ${fullPath}`);
+        continue;
+      }
 
       if (stat.isDirectory()) {
         if (this.config.recursive) {
