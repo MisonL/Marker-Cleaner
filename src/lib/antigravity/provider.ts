@@ -155,4 +155,40 @@ export class AntigravityProvider implements AIProvider {
 
     return { success: false, error: "Unknown response format" };
   }
+  async getQuota(): Promise<{
+    quotaRemaining?: number;
+    quotaTotal?: number;
+    promptCreditsRemaining?: number;
+    promptCreditsTotal?: number;
+    email?: string;
+  }> {
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(`${ENDPOINT}/v1internal:getUserStatus`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+
+      if (!response.ok) return {};
+
+      const data = (await response.json()) as any;
+      // Based on Antigravity-Manager and research
+      // Typical structure contains "quotas" and "promptCredits"
+      const status = data?.userStatus;
+      return {
+        quotaRemaining: status?.quotas?.[0]?.remainingCount,
+        quotaTotal: status?.quotas?.[0]?.totalCount,
+        promptCreditsRemaining: status?.promptCredits?.[0]?.remainingCount,
+        promptCreditsTotal: status?.promptCredits?.[0]?.totalCount,
+        email: status?.email,
+      };
+    } catch (error) {
+       console.error("Failed to fetch quota:", error);
+       return {};
+    }
+  }
 }

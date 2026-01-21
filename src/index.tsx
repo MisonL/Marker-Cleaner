@@ -246,6 +246,7 @@ const App: React.FC = () => {
             setScreen("menu");
           }}
           onCancel={() => setScreen("menu")}
+          logger={createLogger(config.debugLog)}
         />
       )}
 
@@ -296,21 +297,52 @@ interface ConfigScreenProps {
   config: Config;
   onSave: (config: Config) => void;
   onCancel: () => void;
+  logger: ReturnType<typeof createLogger>;
 }
 
 interface ConfigField {
-  key: keyof Config;
+  key: string; // Changed to string for nested keys
   label: string;
   type: "text" | "password" | "boolean" | "select";
   options?: string[];
+  advanced?: boolean;
 }
 
-const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel }) => {
+const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, logger }) => {
   const [editConfig, setEditConfig] = useState(config);
   const [focusIndex, setFocusIndex] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [authState, setAuthState] = useState(loadToken());
   const [loginMsg, setLoginMsg] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [quota, setQuota] = useState<any>(null);
+
+  useEffect(() => {
+    if (editConfig.provider === "antigravity" && authState) {
+        const provider = createProvider(editConfig) as any;
+        if (provider.getQuota) {
+            provider.getQuota().then(setQuota).catch(() => {});
+        }
+    }
+  }, [editConfig.provider, authState]);
+
+  const getNestedValue = (obj: any, path: string) => {
+    return path.split('.').reduce((acc, part) => acc?.[part], obj);
+  };
+
+  const setNestedValue = (obj: any, path: string, value: any) => {
+    const parts = path.split('.');
+    const newObj = { ...obj };
+    let current = newObj;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i]!;
+      current[part] = { ...current[part] };
+      current = current[part];
+    }
+    const lastPart = parts[parts.length - 1]!;
+    current[lastPart] = value;
+    return newObj;
+  };
 
   const getModelOptions = (provider: string) => {
     if (provider === "antigravity") {
@@ -356,7 +388,16 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
     { key: "recursive", label: "递归遍历", type: "boolean" },
     { key: "previewCount", label: "预览数量", type: "text" },
     { key: "debugLog", label: "Debug 日志", type: "boolean" },
+    
+    // Advanced Fields
+    { key: "renameRules.enabled", label: "启用自动重命名", type: "boolean", advanced: true },
+    { key: "renameRules.suffix", label: "命名后缀", type: "text", advanced: true },
+    { key: "renameRules.timestamp", label: "包含时间戳", type: "boolean", advanced: true },
+    { key: "prompts.edit", label: "Native 模式 Prompt", type: "text", advanced: true },
+    { key: "prompts.detect", label: "Detection 模式 Prompt", type: "text", advanced: true },
   ];
+
+  const visibleFields = fields.filter(f => !f.advanced || showAdvanced);
 
   useInput((input, key) => {
     if (isEditing) {
@@ -369,33 +410,28 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
     if (key.upArrow) {
       setFocusIndex((i) => Math.max(0, i - 1));
     } else if (key.downArrow) {
-      setFocusIndex((i) => Math.min(fields.length - 1, i + 1));
+      setFocusIndex((i) => Math.min(visibleFields.length - 1, i + 1));
     } else if (key.return) {
-      const field = fields[focusIndex];
+      const field = visibleFields[focusIndex];
       if (!field) return;
 
       const configKey = field.key;
+      const val = getNestedValue(editConfig, configKey);
+
       if (field.type === "boolean") {
-        const val = editConfig[configKey];
-        if (typeof val === "boolean") {
-          setEditConfig((prev) => ({ ...prev, [configKey]: !val }));
-        }
+        setEditConfig((prev) => setNestedValue(prev, configKey, !val));
       } else if (field.type === "select" && field.options) {
-        const currentVal = editConfig[configKey];
-        if (typeof currentVal === "string") {
+        if (typeof val === "string") {
           const options = field.options;
-          // Smart cycling: handle case where current value isn't in options
-          let nextIndex = options.indexOf(currentVal);
-          if (nextIndex === -1) nextIndex = -1; // Start from beginning if unknown
+          let nextIndex = options.indexOf(val);
+          if (nextIndex === -1) nextIndex = -1;
           nextIndex = (nextIndex + 1) % options.length;
-          
           const nextVal = options[nextIndex];
           
           if (nextVal !== undefined) {
-             // 切换 Provider 时，保存当前 Provider 的配置到档案袋
             if (configKey === "provider") {
               const nextProvider = nextVal as Config["provider"];
-              const prevProvider = currentVal as Config["provider"];
+              const prevProvider = val as Config["provider"];
               
               const updatedSettings = {
                 ...editConfig.providerSettings,
@@ -407,7 +443,6 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
               };
               const nextSettings = updatedSettings[nextProvider];
               
-              // 自动纠正模型: 如果切换到的 Provider 历史模型不在新推荐列表中，且有推荐列表，则使用推荐列表第一个
               let newModelName = nextSettings.modelName || "";
               const newProviderOptions = getModelOptions(nextProvider);
               if (newProviderOptions.length > 0 && !newProviderOptions.includes(newModelName)) {
@@ -423,13 +458,26 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
                 providerSettings: updatedSettings,
               }));
             } else {
-              setEditConfig((prev) => ({ ...prev, [configKey]: nextVal }));
+              setEditConfig((prev) => setNestedValue(prev, configKey, nextVal));
             }
           }
         }
       } else {
         setIsEditing(true);
       }
+    } else if (input === "a") {
+      setShowAdvanced(!showAdvanced);
+    } else if (input === "r" && showAdvanced) {
+        // Reset Prompts
+        const defaultPrompt = resetConfig().prompts;
+        setEditConfig(prev => ({
+            ...prev,
+            prompts: defaultPrompt
+        }));
+        setLoginMsg("✅ Prompts 已恢复默认");
+    } else if (input === "o") {
+        logger.openLogFolder();
+        setLoginMsg("📂 已尝试打开日志文件夹");
     } else if (input === "l" && editConfig.provider === "antigravity") {
       setLoginMsg("⌛️ 正在打开浏览器登录 Auth...");
       loginWithAntigravity()
@@ -480,6 +528,21 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
           </Text>
           {authState?.email && <Text>Email: {authState.email}</Text>}
           {authState?.project_id && <Text>Project: {authState.project_id}</Text>}
+          {quota && (
+            <Box flexDirection="column" marginTop={1}>
+                <Text bold color="yellow">Quota Status:</Text>
+                {quota.quotaTotal && (
+                    <Text>
+                        • API Quota: {quota.quotaRemaining} / {quota.quotaTotal} (Rem / Total)
+                    </Text>
+                )}
+                {quota.promptCreditsTotal && (
+                    <Text>
+                        • Prompt Credits: {quota.promptCreditsRemaining} / {quota.promptCreditsTotal}
+                    </Text>
+                )}
+            </Box>
+          )}
           <Box marginTop={1}>
             <Text>
               {loginMsg || (authState ? "按 'L' 重新登录" : "👉 按 'L' 键进行浏览器登录")}
@@ -488,10 +551,10 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
         </Box>
       )}
 
-      {fields.map((field, index) => {
+      {visibleFields.map((field, index) => {
         const isFocused = index === focusIndex;
-        const value = editConfig[field.key];
-        let displayValue = String(value);
+        const value = getNestedValue(editConfig, field.key);
+        let displayValue = String(value ?? "");
 
         if (field.key === "provider") {
           if (value === "google") displayValue = "Google Gemini API";
@@ -528,22 +591,26 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
         if (field.key === "modelName" && !value) {
              displayValue = "(未设置)";
         }
+        
+        if (field.type === "text" && !isEditing && displayValue.length > 40) {
+            displayValue = displayValue.slice(0, 37) + "...";
+        }
 
         let valComponent: React.ReactNode;
         if (field.type === "password") {
           if (isEditing && isFocused) {
             valComponent = (
               <TextInput
-                value={String(editConfig[field.key])}
-                onChange={(val) => setEditConfig((prev) => ({ ...prev, [field.key]: val }))}
+                value={String(getNestedValue(editConfig, field.key) ?? "")}
+                onChange={(val) => setEditConfig((prev) => setNestedValue(prev, field.key, val))}
                 mask="*"
               />
             );
           } else {
             valComponent = (
               <Text color="yellow">
-                {editConfig[field.key]
-                  ? "*".repeat(String(editConfig[field.key]).length)
+                {getNestedValue(editConfig, field.key)
+                  ? "*".repeat(String(getNestedValue(editConfig, field.key)).length)
                   : editConfig.provider === "antigravity"
                     ? "(通过‘L’键登录自动获取)"
                     : "(未设置)"}
@@ -564,9 +631,9 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
                 value={String(value ?? "")}
                 onChange={(val) => {
                   if (field.key === "previewCount") {
-                    setEditConfig((prev) => ({ ...prev, [field.key]: Number.parseInt(val) || 0 }));
+                    setEditConfig((prev) => setNestedValue(prev, field.key, Number.parseInt(val) || 0));
                   } else {
-                    setEditConfig((prev) => ({ ...prev, [field.key]: val }));
+                    setEditConfig((prev) => setNestedValue(prev, field.key, val));
                   }
                 }}
                 onSubmit={() => setIsEditing(false)}
@@ -594,9 +661,17 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
       {/* Footer */}
       <Box marginTop={2} flexDirection="column">
         <Text dimColor>按 Esc 返回 | 按 ↑↓ 导航 | 按 Enter 确认/编辑</Text>
-        <Text dimColor>
-          按 S 保存配置{editConfig.provider === "antigravity" ? " | 按 L 登录 Antigravity" : ""}
-        </Text>
+        <Box>
+            <Text dimColor>按 </Text><Text bold color="cyan">S</Text><Text dimColor> 保存 | 按 </Text>
+            <Text bold color="cyan">A</Text><Text dimColor> {showAdvanced ? "折叠" : "展开"}高级设置 | 按 </Text>
+            <Text bold color="cyan">O</Text><Text dimColor> 打开日志文件夹</Text>
+        </Box>
+        {showAdvanced && (
+            <Text dimColor>按 <Text bold color="red">R</Text> 恢复所有 Prompt 为默认值</Text>
+        )}
+        {editConfig.provider === "antigravity" && (
+            <Text dimColor>按 <Text bold color="cyan">L</Text> 登录 Antigravity 账号</Text>
+        )}
       </Box>
     </Box>
   );

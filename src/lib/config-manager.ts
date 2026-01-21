@@ -29,12 +29,27 @@ const ProviderSettingsSchema = z.object({
   modelName: z.string(),
 });
 
+const RenameRulesSchema = z.object({
+  enabled: z.boolean().default(true),
+  suffix: z.string().default("_cleaned"),
+  timestamp: z.boolean().default(true),
+  keepExtension: z.boolean().default(true),
+});
+
 export const ConfigSchema = z.object({
   // 目录配置
   inputDir: z.string().default("./input"),
   outputDir: z.string().default("./output"),
   recursive: z.boolean().default(true),
   preserveStructure: z.boolean().default(true),
+  
+  // 重命名规则
+  renameRules: RenameRulesSchema.default({
+    enabled: true,
+    suffix: "_cleaned",
+    timestamp: true,
+    keepExtension: true,
+  }),
 
   // Provider 配置
   provider: z.enum(["google", "openai", "antigravity"]).default("antigravity"),

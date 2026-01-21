@@ -81,14 +81,23 @@ export class BatchProcessor {
 
     const newExt = getOutputExtension(this.config.outputFormat, ext);
     
-    // Generate timestamp YYYYMMDD_HHmmss
-    const now = new Date();
-    const timestamp = now.toISOString()
-      .replace(/[-:T]/g, "")
-      .slice(0, 14) // YYYYMMDDHHMMSS
-      .replace(/(\d{8})(\d{6})/, "$1_$2"); // YYYYMMDD_HHMMSS
+    const rules = this.config.renameRules;
+    let suffix = "";
 
-    const suffix = `_cleaned_${timestamp}`;
+    if (rules.enabled) {
+      if (rules.timestamp) {
+        // Generate timestamp YYYYMMDD_HHmmss
+        const now = new Date();
+        const timestamp = now.toISOString()
+          .replace(/[-:T]/g, "")
+          .slice(0, 14) // YYYYMMDDHHMMSS
+          .replace(/(\d{8})(\d{6})/, "$1_$2"); // YYYYMMDD_HHMMSS
+        suffix += `_${timestamp}`;
+      }
+      if (rules.suffix) {
+        suffix = rules.suffix + suffix;
+      }
+    }
 
     if (this.config.preserveStructure) {
       return join(this.config.outputDir, dirName, baseName + suffix + newExt);
