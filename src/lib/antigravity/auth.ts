@@ -159,7 +159,7 @@ async function exchangeToken(code: string, verifier: string): Promise<TokenStore
   const data = (await res.json()) as AntigravityTokenResponse;
   const now = Date.now();
 
-  // Get User Info for email
+  // 获取用户信息以便获取邮箱
   let email = "";
   try {
     const userRes = await fetch("https://www.googleapis.com/oauth2/v1/userinfo?alt=json", {
@@ -171,7 +171,7 @@ async function exchangeToken(code: string, verifier: string): Promise<TokenStore
     }
   } catch (e) {}
 
-  // Resolve Project ID (Try Prod First)
+  // 解析项目 ID (尝试优先获取)
   let projectId = "";
   try {
     projectId = await fetchProjectID(data.access_token);
@@ -242,7 +242,7 @@ export async function getAccessToken(): Promise<string> {
     return token.access_token;
   }
 
-  // Refresh Token
+  // 刷新 Token
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -261,7 +261,7 @@ export async function getAccessToken(): Promise<string> {
     ...token,
     access_token: data.access_token,
     expires_at: Date.now() + data.expires_in * 1000,
-    // Update refresh token if returned
+    // 如果返回了新的 refresh token 则更新
     refresh_token: data.refresh_token || token.refresh_token,
   };
 

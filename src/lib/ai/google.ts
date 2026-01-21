@@ -88,7 +88,7 @@ export class GoogleProvider implements AIProvider {
       }
     }
 
-    // 检查是否有文本返回 (Nano 模式 - 坐标检测)
+    // 检查是否有文本返回 (Detection 模式 - 坐标检测)
     for (const part of candidate.content.parts) {
       if (part.text) {
         const boxes = parseBoxesFromText(part.text);

@@ -70,9 +70,9 @@ export const ConfigSchema = z.object({
       antigravity: {
         apiKey: "",
         modelName: "gemini-3-pro-image",
-        // Native Mode: gemini-3-pro-image (High Quality Inpainting)
-        // Detection Mode: gemini-3-flash (Fast & Cheap), gemini-3-pro-high (Smartest)
-        // Others: claude-sonnet-4-5, gpt-oss-120b-medium
+        // Native 模式: gemini-3-pro-image (高质量重绘)
+        // Detection 模式: gemini-3-flash (快速且廉价), gemini-3-pro-high (最智能)
+        // 其他: claude-sonnet-4-5, gpt-oss-120b-medium
       },
     }),
 
@@ -89,7 +89,7 @@ export const ConfigSchema = z.object({
   // 高级配置
   previewCount: z.number().min(0).default(3),
   debugLog: z.boolean().default(false),
-  budgetLimit: z.number().default(0), // 0 means disabled, in USD
+  budgetLimit: z.number().default(0), // 0 表示禁用，单位美元
 
   // 定价配置
   pricing: PricingSchema.default({

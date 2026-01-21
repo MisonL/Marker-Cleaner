@@ -52,14 +52,14 @@ export class AntigravityProvider implements AIProvider {
   constructor(config: Config) {
     this.modelName = config.modelName;
     // 仅当模型名称明确包含 "image" 时，才视为支持原生图像编辑
-    // 其他模型 (如 gemini-3-flash, gemini-3-pro-high) 仅用于视觉检测 (Nano 模式)
+    // 其他模型 (如 gemini-3-flash, gemini-3-pro-high) 仅用于视觉检测 (Detection 模式)
     this.supportsImageEdit = this.modelName.toLowerCase().includes("image");
   }
 
   async processImage(imageBuffer: Buffer, prompt: string): Promise<ProcessResult> {
     try {
       const token = await getAccessToken();
-      const tokenData = loadToken(); // needed for project_id
+      const tokenData = loadToken(); // 需要 project_id
 
       if (!tokenData?.project_id) {
         throw new Error("Missing Project ID. Please re-login.");
@@ -88,7 +88,7 @@ export class AntigravityProvider implements AIProvider {
             },
           ],
         },
-        request_type: "agent", // image_gen also works, agent is more general
+        request_type: "agent", // image_gen 也可以，但 agent 更通用
         userAgent: "antigravity",
         requestId: randomUUID(),
       };
@@ -142,7 +142,7 @@ export class AntigravityProvider implements AIProvider {
     const inputTokens = usage?.promptTokenCount ?? 0;
     const outputTokens = usage?.candidatesTokenCount ?? 0;
 
-    // Check for Image (Pro mode)
+    // 检查是否为图片 (Pro 模式)
     for (const part of candidate.content.parts) {
       if (part.inlineData?.data) {
         return {
@@ -154,7 +154,7 @@ export class AntigravityProvider implements AIProvider {
       }
     }
 
-    // Check for Text (Nano mode)
+    // 检查是否为文本 (Detection 模式)
     for (const part of candidate.content.parts) {
       if (part.text) {
         const boxes = parseBoxesFromText(part.text);
@@ -180,7 +180,7 @@ export class AntigravityProvider implements AIProvider {
   async getQuota(): Promise<QuotaStatus | null> {
     try {
       const token = await getAccessToken();
-      // Correct endpoint from reference repo
+      // 从参考仓库获取的正确端点
       const response = await fetch(
         `${ENDPOINT}/exa.language_server_pb.LanguageServerService/GetUserStatus`,
         {
@@ -194,7 +194,7 @@ export class AntigravityProvider implements AIProvider {
       );
 
       if (!response.ok) {
-        // Silently fail for quota to avoid error noise
+        // 配额获取失败时静默处理，避免干扰
         return null;
       }
 
@@ -202,7 +202,7 @@ export class AntigravityProvider implements AIProvider {
       const data = (await response.json()) as { userStatus?: any; currentTier?: string };
       const status = data?.userStatus;
 
-      // Map data structure if available
+      // 如果有数据则映射结构
       return {
         quotaRemaining: status?.quotas?.[0]?.remainingCount,
         quotaTotal: status?.quotas?.[0]?.totalCount,

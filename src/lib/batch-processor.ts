@@ -104,7 +104,7 @@ export class BatchProcessor {
 
     if (rules.enabled) {
       if (rules.timestamp) {
-        // Generate timestamp YYYYMMDD_HHmmss
+        // 生成时间戳 YYYYMMDD_HHmmss
         const now = new Date();
         const timestamp = now
           .toISOString()
@@ -249,7 +249,7 @@ export class BatchProcessor {
   private generateReport() {
     const reportName = `report_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.html`;
 
-    // Ensure output directory exists before writing report
+    // 写入报告前确保输出目录存在
     if (!existsSync(this.config.outputDir)) {
       mkdirSync(this.config.outputDir, { recursive: true });
     }
@@ -293,7 +293,7 @@ export class BatchProcessor {
       // Pro 模式：AI 直接返回图片
       outputBuffer = result.outputBuffer;
     } else if (result.boxes && result.boxes.length > 0) {
-      // Nano 模式：本地修复
+      // Detection 模式：本地修复
       this.logger.debug(`检测到 ${result.boxes.length} 个标记区域，执行本地修复`);
       outputBuffer = await cleanMarkersLocal(inputBuffer, result.boxes);
     } else {

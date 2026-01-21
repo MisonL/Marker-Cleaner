@@ -4,13 +4,13 @@ import { join } from "node:path";
 import * as configManager from "../lib/config-manager";
 import { ConfigSchema } from "../lib/config-manager";
 
-// Mock homedir to use a temp directory
+// 模拟 homedir 使用临时目录
 const TEST_DIR = join(process.cwd(), "test-temp-config");
 
-// Mocking os module is tricky in Bun with ESM, so we'll try to rely on
-// the fact that we can manipulate where getConfigDir looks or just test logic that accepts paths if possible.
-// But getConfigDir is hardcoded.
-// Strategy: We will mock `homedir` by mocking the module `node:os`.
+// 在 Bun ESM 环境中 Mock os 模块比较棘手，所以我们模拟
+// getConfigDir 的行为或者尽可能测试接受路径的逻辑。
+// 但是 getConfigDir 是硬编码的。
+// 策略：我们通过 mock `node:os` 模块来模拟 `homedir`。
 
 mock.module("node:os", () => {
   return {
@@ -20,7 +20,7 @@ mock.module("node:os", () => {
 });
 
 describe("ConfigManager", () => {
-  // Setup and Teardown
+  // 设置与清理
   beforeEach(() => {
     if (existsSync(TEST_DIR)) {
       rmSync(TEST_DIR, { recursive: true, force: true });
@@ -35,37 +35,37 @@ describe("ConfigManager", () => {
   });
 
   describe("ConfigSchema", () => {
-    test("should parse empty object with defaults", () => {
+    test("应解析带有默认值的空对象", () => {
       const config = ConfigSchema.parse({});
       expect(config.inputDir).toBe("./input");
       expect(config.outputDir).toBe("./output");
       expect(config.provider).toBe("antigravity");
     });
 
-    test("should reject invalid provider", () => {
+    test("应拒绝无效的 provider", () => {
       expect(() => ConfigSchema.parse({ provider: "invalid" })).toThrow();
     });
   });
 
-  describe("File Operations", () => {
-    test("getConfigDir should return path inside mocked homedir", () => {
-      // Note: This test depends on process.platform.
-      // On macOS it should be join(TEST_DIR, ".marker-cleaner")
-      // On Linux it might differ if XDG_CONFIG_HOME is set, but we mocked homedir.
-      // Let's just check it contains TEST_DIR.
+  describe("文件操作", () => {
+    test("getConfigDir 应返回模拟 homedir 中的路径", () => {
+      // 注意：此测试依赖于 process.platform。
+      // 在 macOS 上应为 join(TEST_DIR, ".marker-cleaner")
+      // 在 Linux 上若设置了 XDG_CONFIG_HOME 可能不同，但我们 mock 了 homedir。
+      // 我们只检查它包含 TEST_DIR。
       const dir = configManager.getConfigDir();
       expect(dir).toContain(TEST_DIR);
     });
 
-    test("loadConfig should return default config if file does not exist", () => {
+    test("loadConfig 若文件不存在应返回默认配置", () => {
       const config = configManager.loadConfig();
       expect(config.provider).toBe("antigravity");
-      // Should create the file
+      // 应该创建文件
       const dir = configManager.getConfigDir();
       expect(existsSync(join(dir, "marker-cleaner.json"))).toBe(true);
     });
 
-    test("loadConfig should load existing config", () => {
+    test("loadConfig 应加载现有配置", () => {
       const dir = configManager.getConfigDir();
       const dummyConfig = {
         ...configManager.getDefaultConfig(),
@@ -79,7 +79,7 @@ describe("ConfigManager", () => {
       expect(config.apiKey).toBe("test-key");
     });
 
-    test("loadConfig should repair invalid config", () => {
+    test("loadConfig 应修复无效配置", () => {
       const dir = configManager.getConfigDir();
       const invalidConfig = {
         provider: "invalid-provider",
@@ -87,12 +87,12 @@ describe("ConfigManager", () => {
       // @ts-ignore
       writeFileSync(join(dir, "marker-cleaner.json"), JSON.stringify(invalidConfig));
 
-      // Should fallback to default or repair
+      // 应该回退到默认值或修复
       const config = configManager.loadConfig();
       expect(config.provider).toBe("antigravity"); // Default
     });
 
-    test("saveConfig should write config to file", () => {
+    test("saveConfig 应将配置写入文件", () => {
       const config = configManager.getDefaultConfig();
       config.provider = "google";
       configManager.saveConfig(config);
@@ -102,7 +102,7 @@ describe("ConfigManager", () => {
       expect(content.provider).toBe("google");
     });
 
-    test("resetConfig should restore defaults", () => {
+    test("resetConfig 应恢复默认值", () => {
       const config = configManager.getDefaultConfig();
       config.provider = "google";
       configManager.saveConfig(config);
@@ -116,8 +116,8 @@ describe("ConfigManager", () => {
     });
   });
 
-  describe("Progress Management", () => {
-    test("loadProgress should return default if no file", () => {
+  describe("进度管理", () => {
+    test("loadProgress 若无文件应返回默认值", () => {
       const progress = configManager.loadProgress();
       expect(progress.totalInputTokens).toBe(0);
       expect(progress.processedFiles).toEqual([]);
@@ -139,7 +139,7 @@ describe("ConfigManager", () => {
       expect(loaded.totalInputTokens).toBe(100);
     });
 
-    test("clearProgress should reset progress", () => {
+    test("clearProgress 应重置进度", () => {
       const progress = {
         processedFiles: ["file1.jpg"],
         totalInputTokens: 100,

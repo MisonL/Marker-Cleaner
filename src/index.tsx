@@ -1,9 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"; // Added imports
-import { dirname, extname, join } from "node:path"; // Added imports
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"; // 新增导入
+import { dirname, extname, join } from "node:path"; // 新增导入
 import { Box, Text, render, useApp, useInput } from "ink";
 import SelectInput from "ink-select-input";
 import Spinner from "ink-spinner";
-import TextInput from "ink-text-input"; // Added import
+import TextInput from "ink-text-input"; // 新增导入
 import type React from "react";
 import { useEffect, useState } from "react";
 import { createProvider } from "./lib/ai";
@@ -147,7 +147,7 @@ const App: React.FC = () => {
 
   return (
     <Box flexDirection="column" padding={1}>
-      {/* Header */}
+      {/* 标题 */}
       <Box marginBottom={1}>
         <Text bold color="cyan">
           ╔══════════════════════════════════════╗
@@ -164,21 +164,21 @@ const App: React.FC = () => {
         </Text>
       </Box>
 
-      {/* Provider Info */}
+      {/* Provider 信息 */}
       <Box marginBottom={1}>
         <Text dimColor>
           Provider: {config.provider} | Model: {config.modelName}
         </Text>
       </Box>
 
-      {/* Error Display */}
+      {/* 错误展示 */}
       {error && (
         <Box marginBottom={1}>
           <Text color="red">{error}</Text>
         </Box>
       )}
 
-      {/* Status */}
+      {/* 状态栏 */}
       {status && (
         <Box marginBottom={1}>
           <Text color="yellow">{status}</Text>
@@ -205,7 +205,7 @@ const App: React.FC = () => {
         </Box>
       )}
 
-      {/* Missing Configuration Warning */}
+      {/* 配置缺失警告 */}
       {screen === "menu" &&
         (() => {
           const hasToken = !!loadToken();
@@ -249,7 +249,7 @@ const App: React.FC = () => {
           return null;
         })()}
 
-      {/* Main Content */}
+      {/* 主内容 */}
       {screen === "menu" && (
         <Box flexDirection="column">
           <Box marginBottom={1}>
@@ -325,7 +325,7 @@ const App: React.FC = () => {
         </Box>
       )}
 
-      {/* Footer */}
+      {/* 底部导航 */}
       <Box marginTop={1}>
         <Text dimColor>按 ↑↓ 导航 | 按 Enter 选择 | 按 Q 退出</Text>
       </Box>
@@ -343,7 +343,7 @@ interface ConfigScreenProps {
 }
 
 interface ConfigField {
-  key: string; // Changed to string for nested keys
+  key: string; // 改为 string 以支持嵌套键
   label: string;
   type: "text" | "password" | "boolean" | "select";
   options?: string[];
@@ -440,7 +440,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
     { key: "budgetLimit", label: "成本熔断 (USD)", type: "text" },
     { key: "debugLog", label: "Debug 日志", type: "boolean" },
 
-    // Advanced Fields
+    // 高级选项
     { key: "renameRules.enabled", label: "启用自动重命名", type: "boolean", advanced: true },
     { key: "renameRules.suffix", label: "命名后缀", type: "text", advanced: true },
     { key: "renameRules.timestamp", label: "包含时间戳", type: "boolean", advanced: true },
@@ -722,7 +722,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
         );
       })}
 
-      {/* Footer */}
+      {/* 底部导航 */}
       <Box marginTop={2} flexDirection="column">
         <Text dimColor>按 Esc 返回 | 按 ↑↓ 导航 | 按 Enter 确认/编辑</Text>
         <Box>

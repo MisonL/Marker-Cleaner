@@ -15,7 +15,7 @@ import type { Logger } from "./types";
 
 const LOG_FILE = "debug.log";
 const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5MB
-const MAX_LOG_FILES = 7; // Keep last 7 logs
+const MAX_LOG_FILES = 7; // 保留最近 7 个日志文件
 
 class LogManager {
   private logPath: string;
@@ -51,7 +51,7 @@ class LogManager {
       const files = readdirSync(this.logDir)
         .filter((f) => f.startsWith("debug_") && f.endsWith(".log"))
         .map((f) => ({ name: f, time: statSync(join(this.logDir, f)).mtime.getTime() }))
-        .sort((a, b) => b.time - a.time); // Newest first
+        .sort((a, b) => b.time - a.time); // 最新优先
 
       if (files.length > MAX_LOG_FILES) {
         files.slice(MAX_LOG_FILES).forEach((f) => {
