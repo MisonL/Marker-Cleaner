@@ -80,11 +80,20 @@ export class BatchProcessor {
     const dirName = dirname(relativePath);
 
     const newExt = getOutputExtension(this.config.outputFormat, ext);
+    
+    // Generate timestamp YYYYMMDD_HHmmss
+    const now = new Date();
+    const timestamp = now.toISOString()
+      .replace(/[-:T]/g, "")
+      .slice(0, 14) // YYYYMMDDHHMMSS
+      .replace(/(\d{8})(\d{6})/, "$1_$2"); // YYYYMMDD_HHMMSS
+
+    const suffix = `_cleaned_${timestamp}`;
 
     if (this.config.preserveStructure) {
-      return join(this.config.outputDir, dirName, baseName + newExt);
+      return join(this.config.outputDir, dirName, baseName + suffix + newExt);
     }
-    return join(this.config.outputDir, baseName + newExt);
+    return join(this.config.outputDir, baseName + suffix + newExt);
   }
 
   /**
