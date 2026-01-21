@@ -66,9 +66,12 @@ bun start
 
 为了获得最佳体验，请根据您的需求选择合适的 Provider。
 
-### 方案 A：追求极速性价比 (推荐)
+### 方案 A：追求极速性价比
 
 使用 Google 官方渠道，配合最新的 Gemini 2.5 Flash 模型。
+
+> [!IMPORTANT]
+> **注意**：Google 官方 API 要求账号等级达到 **Tier 1** 才能调用 Image 生成模型。如果不满足此条件，请使用 **Antigravity** 渠道。
 
 ```json
 {
@@ -82,7 +85,7 @@ bun start
 }
 ```
 
-### 方案 B：追求极致画质与能力 (Antigravity)
+### 方案 B：追求极致画质与能力 (Antigravity - 推荐)
 
 使用内部 Antigravity 渠道，支持 Gemini 3 全系列顶级模型。
 
