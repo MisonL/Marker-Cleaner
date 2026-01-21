@@ -1,6 +1,7 @@
 import OpenAI from "openai";
-import type { AIProvider, ProcessResult, BoundingBox } from "../types";
+import type { AIProvider, ProcessResult } from "../types";
 import type { Config } from "../config-manager";
+import { detectMimeType, parseBoxesFromText } from "../utils";
 
 export class OpenAIProvider implements AIProvider {
   readonly name = "OpenAI Compatible";
@@ -20,7 +21,7 @@ export class OpenAIProvider implements AIProvider {
   async processImage(imageBuffer: Buffer, prompt: string): Promise<ProcessResult> {
     try {
       const base64 = imageBuffer.toString("base64");
-      const mimeType = this.detectMimeType(imageBuffer);
+      const mimeType = detectMimeType(imageBuffer);
 
       const response = await this.client.chat.completions.create({
         model: this.modelName,
@@ -64,7 +65,7 @@ export class OpenAIProvider implements AIProvider {
     const outputTokens = usage?.completion_tokens ?? 0;
 
     // OpenAI 接口通常返回文本，尝试解析坐标
-    const boxes = this.parseBoxesFromText(content);
+    const boxes = parseBoxesFromText(content);
     if (boxes.length > 0) {
       return {
         success: true,
@@ -81,38 +82,5 @@ export class OpenAIProvider implements AIProvider {
       outputTokens,
     };
   }
-
-  private parseBoxesFromText(text: string): BoundingBox[] {
-    try {
-      const jsonMatch = text.match(/\[[\s\S]*?\]/);
-      if (!jsonMatch) return [];
-
-      const parsed = JSON.parse(jsonMatch[0]);
-      if (!Array.isArray(parsed)) return [];
-
-      return parsed
-        .filter(
-          (item) =>
-            typeof item.ymin === "number" &&
-            typeof item.xmin === "number" &&
-            typeof item.ymax === "number" &&
-            typeof item.xmax === "number"
-        )
-        .map((item) => ({
-          ymin: item.ymin,
-          xmin: item.xmin,
-          ymax: item.ymax,
-          xmax: item.xmax,
-        }));
-    } catch {
-      return [];
-    }
-  }
-
-  private detectMimeType(buffer: Buffer): string {
-    if (buffer[0] === 0x89 && buffer[1] === 0x50) return "image/png";
-    if (buffer[0] === 0xff && buffer[1] === 0xd8) return "image/jpeg";
-    if (buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[8] === 0x57) return "image/webp";
-    return "image/png";
-  }
 }
+

@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI, type GenerateContentResult, type RequestOptions } from "@google/generative-ai";
-import type { AIProvider, ProcessResult, BoundingBox } from "../types";
+import type { AIProvider, ProcessResult } from "../types";
 import type { Config } from "../config-manager";
+import { detectMimeType, parseBoxesFromText } from "../utils";
 
 export class GoogleProvider implements AIProvider {
   readonly name = "Google Gemini";
@@ -27,7 +28,7 @@ export class GoogleProvider implements AIProvider {
   async processImage(imageBuffer: Buffer, prompt: string): Promise<ProcessResult> {
     try {
       const base64 = imageBuffer.toString("base64");
-      const mimeType = this.detectMimeType(imageBuffer);
+      const mimeType = detectMimeType(imageBuffer);
 
       const model = this.client.getGenerativeModel(
         { model: this.modelName },
@@ -77,7 +78,7 @@ export class GoogleProvider implements AIProvider {
     // 检查是否有文本返回 (Nano 模式 - 坐标检测)
     for (const part of candidate.content.parts) {
       if (part.text) {
-        const boxes = this.parseBoxesFromText(part.text);
+        const boxes = parseBoxesFromText(part.text);
         if (boxes.length > 0) {
           return {
             success: true,
@@ -97,49 +98,5 @@ export class GoogleProvider implements AIProvider {
     }
 
     return { success: false, error: "Unknown response format" };
-  }
-
-  private parseBoxesFromText(text: string): BoundingBox[] {
-    try {
-      // 尝试提取 JSON 数组
-      const jsonMatch = text.match(/\[[\s\S]*?\]/);
-      if (!jsonMatch) return [];
-
-      const parsed = JSON.parse(jsonMatch[0]);
-      if (!Array.isArray(parsed)) return [];
-
-      return parsed
-        .filter(
-          (item) =>
-            typeof item.ymin === "number" &&
-            typeof item.xmin === "number" &&
-            typeof item.ymax === "number" &&
-            typeof item.xmax === "number"
-        )
-        .map((item) => ({
-          ymin: item.ymin,
-          xmin: item.xmin,
-          ymax: item.ymax,
-          xmax: item.xmax,
-        }));
-    } catch {
-      return [];
-    }
-  }
-
-  private detectMimeType(buffer: Buffer): string {
-    // PNG: 89 50 4E 47
-    if (buffer[0] === 0x89 && buffer[1] === 0x50) {
-      return "image/png";
-    }
-    // JPEG: FF D8 FF
-    if (buffer[0] === 0xff && buffer[1] === 0xd8) {
-      return "image/jpeg";
-    }
-    // WebP: 52 49 46 46 ... 57 45 42 50
-    if (buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[8] === 0x57) {
-      return "image/webp";
-    }
-    return "image/png"; // 默认
   }
 }

@@ -1,7 +1,7 @@
 import { createServer } from "http";
 import { createHash, randomBytes } from "crypto";
 import open from "open";
-import { writeFileSync, readFileSync, existsSync } from "fs";
+import { writeFileSync, readFileSync, existsSync, unlinkSync } from "fs";
 import { join } from "path";
 
 import { CLIENT_ID, CLIENT_SECRET } from "./constants";
@@ -34,7 +34,6 @@ function migrateOldToken(): void {
       const oldContent = readFileSync(oldTokenPath, "utf-8");
       writeFileSync(newTokenPath, oldContent, "utf-8");
       // 迁移成功后删除旧文件
-      const { unlinkSync } = require("fs");
       unlinkSync(oldTokenPath);
       console.log(`✅ 已将 Token 迁移至: ${newTokenPath}`);
     } catch (e) {

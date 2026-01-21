@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 
@@ -119,7 +119,6 @@ function migrateOldConfig(): void {
       const oldContent = readFileSync(oldConfigPath, "utf-8");
       writeFileSync(newConfigPath, oldContent, "utf-8");
       // 迁移成功后删除旧文件
-      const { unlinkSync } = require("fs");
       unlinkSync(oldConfigPath);
       console.log(`✅ 已将配置迁移至: ${newConfigPath}`);
     } catch (e) {
@@ -140,7 +139,6 @@ function migrateOldProgress(): void {
       const oldContent = readFileSync(oldProgressPath, "utf-8");
       writeFileSync(newProgressPath, oldContent, "utf-8");
       // 迁移成功后删除旧文件
-      const { unlinkSync } = require("fs");
       unlinkSync(oldProgressPath);
       console.log(`✅ 已将进度迁移至: ${newProgressPath}`);
     } catch (e) {

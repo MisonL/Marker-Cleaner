@@ -2,6 +2,7 @@ import type { AIProvider, ProcessResult, BoundingBox } from "../types";
 import type { Config } from "../config-manager";
 import { getAccessToken, loadToken } from "./auth";
 import { randomUUID } from "crypto";
+import { detectMimeType, parseBoxesFromText, getPlatformInfo } from "../utils";
 
 const ENDPOINT = "https://daily-cloudcode-pa.sandbox.googleapis.com";
 
@@ -55,7 +56,8 @@ export class AntigravityProvider implements AIProvider {
       }
 
       const base64 = imageBuffer.toString("base64");
-      const mimeType = this.detectMimeType(imageBuffer);
+      const mimeType = detectMimeType(imageBuffer);
+      const { platform, arch } = getPlatformInfo();
 
       const body = {
         project: tokenData.project_id,
@@ -85,7 +87,7 @@ export class AntigravityProvider implements AIProvider {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
-          "User-Agent": "antigravity/1.11.5 windows/amd64",
+          "User-Agent": `antigravity/1.11.5 ${platform}/${arch}`,
           "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
           "Client-Metadata": '{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}',
         },
@@ -132,7 +134,7 @@ export class AntigravityProvider implements AIProvider {
     // Check for Text (Nano mode)
     for (const part of candidate.content.parts) {
       if (part.text) {
-        const boxes = this.parseBoxesFromText(part.text);
+        const boxes = parseBoxesFromText(part.text);
         if (boxes.length > 0) {
           return {
             success: true,
@@ -151,40 +153,5 @@ export class AntigravityProvider implements AIProvider {
     }
 
     return { success: false, error: "Unknown response format" };
-  }
-
-  private parseBoxesFromText(text: string): BoundingBox[] {
-    try {
-      const jsonMatch = text.match(/\[[\s\S]*?\]/);
-      if (!jsonMatch) return [];
-
-      const parsed = JSON.parse(jsonMatch[0]) as unknown[];
-      if (!Array.isArray(parsed)) return [];
-
-      return parsed
-        .filter(
-          (item): item is { ymin: number; xmin: number; ymax: number; xmax: number } =>
-            typeof item === "object" && item !== null &&
-            "ymin" in item && typeof item.ymin === "number" &&
-            "xmin" in item && typeof item.xmin === "number" &&
-            "ymax" in item && typeof item.ymax === "number" &&
-            "xmax" in item && typeof item.xmax === "number"
-        )
-        .map((item) => ({
-          ymin: item.ymin,
-          xmin: item.xmin,
-          ymax: item.ymax,
-          xmax: item.xmax,
-        }));
-    } catch {
-      return [];
-    }
-  }
-
-  private detectMimeType(buffer: Buffer): string {
-    if (buffer[0] === 0x89 && buffer[1] === 0x50) return "image/png";
-    if (buffer[0] === 0xff && buffer[1] === 0xd8) return "image/jpeg";
-    if (buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[8] === 0x57) return "image/webp";
-    return "image/png";
   }
 }
