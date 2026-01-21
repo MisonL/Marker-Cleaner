@@ -1,8 +1,8 @@
-import type { AIProvider } from "../types";
+import { AntigravityProvider } from "../antigravity/provider";
 import type { Config } from "../config-manager";
+import type { AIProvider } from "../types";
 import { GoogleProvider } from "./google";
 import { OpenAIProvider } from "./openai";
-import { AntigravityProvider } from "../antigravity/provider";
 
 export function createProvider(config: Config): AIProvider {
   switch (config.provider) {

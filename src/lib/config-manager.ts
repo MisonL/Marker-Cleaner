@@ -1,7 +1,7 @@
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { z } from "zod";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from "fs";
-import { join } from "path";
-import { homedir } from "os";
 
 // ============ Schema 定义 ============
 const PricingSchema = z.object({
@@ -43,20 +43,23 @@ export const ConfigSchema = z.object({
   modelName: z.string().default("nano-banana-pro"),
 
   // 各 Provider 独立的档案袋配置
-  providerSettings: z.object({
-    google: ProviderSettingsSchema,
-    openai: ProviderSettingsSchema,
-    antigravity: ProviderSettingsSchema,
-  }).default({
-    google: { apiKey: "", modelName: "gemini-2.5-flash-image" },
-    openai: { apiKey: "", modelName: "gpt-4o" },
-    antigravity: { apiKey: "", modelName: "nano-banana-pro" },
-  }),
+  providerSettings: z
+    .object({
+      google: ProviderSettingsSchema,
+      openai: ProviderSettingsSchema,
+      antigravity: ProviderSettingsSchema,
+    })
+    .default({
+      google: { apiKey: "", modelName: "gemini-2.5-flash-image" },
+      openai: { apiKey: "", modelName: "gpt-4o" },
+      antigravity: { apiKey: "", modelName: "nano-banana-pro" },
+    }),
 
   // Prompt 配置
   prompts: PromptsSchema.default({
     edit: "请移除图中所有手动添加的彩色矩形标记框（通常是红色、橙色或黄色的细线边框），保持背景内容完整不变。直接返回处理后的图片。",
-    detect: "请识别图中所有人工添加的彩色矩形标记框（通常是红色、橙色或黄色的细线边框），返回它们的边界框坐标。格式：JSON 数组 [{ymin, xmin, ymax, xmax}]，坐标为相对值(0-1)。",
+    detect:
+      "请识别图中所有人工添加的彩色矩形标记框（通常是红色、橙色或黄色的细线边框），返回它们的边界框坐标。格式：JSON 数组 [{ymin, xmin, ymax, xmax}]，坐标为相对值(0-1)。",
   }),
 
   // 输出配置
@@ -69,7 +72,7 @@ export const ConfigSchema = z.object({
   // 定价配置
   pricing: PricingSchema.default({
     inputTokenPer1M: 0.15,
-    outputTokenPer1M: 0.60,
+    outputTokenPer1M: 0.6,
     imageOutput: 0.039,
   }),
 });
@@ -113,7 +116,7 @@ export function getConfigDir(): string {
 function migrateOldConfig(): void {
   const oldConfigPath = join(process.cwd(), CONFIG_FILE);
   const newConfigPath = join(getConfigDir(), CONFIG_FILE);
-  
+
   if (existsSync(oldConfigPath) && !existsSync(newConfigPath)) {
     try {
       const oldContent = readFileSync(oldConfigPath, "utf-8");
@@ -133,7 +136,7 @@ function migrateOldConfig(): void {
 function migrateOldProgress(): void {
   const oldProgressPath = join(process.cwd(), PROGRESS_FILE);
   const newProgressPath = join(getConfigDir(), PROGRESS_FILE);
-  
+
   if (existsSync(oldProgressPath) && !existsSync(newProgressPath)) {
     try {
       const oldContent = readFileSync(oldProgressPath, "utf-8");
@@ -157,7 +160,7 @@ export function getDefaultConfig(): Config {
 export function loadConfig(): Config {
   // 尝试迁移旧配置
   migrateOldConfig();
-  
+
   const configPath = join(getConfigDir(), CONFIG_FILE);
 
   if (!existsSync(configPath)) {
@@ -177,33 +180,35 @@ export function loadConfig(): Config {
       parsed.provider = "google";
     }
     if (parsed.providerSettings?.["google gemini api (需要tier1+层级)"]) {
-      parsed.providerSettings.google = parsed.providerSettings["google gemini api (需要tier1+层级)"];
-      delete parsed.providerSettings["google gemini api (需要tier1+层级)"];
+      parsed.providerSettings.google =
+        parsed.providerSettings["google gemini api (需要tier1+层级)"];
+      parsed.providerSettings["google gemini api (需要tier1+层级)"] = undefined;
     }
 
     const result = ConfigSchema.safeParse(parsed);
     if (result.success) {
       return result.data;
     }
-    
+
     // 解析失败，尝试合并默认值并再次安全解析
-    console.warn(`⚠️ 配置文件验证失败，正在尝试修复部分非法字段...`);
+    console.warn("⚠️ 配置文件验证失败，正在尝试修复部分非法字段...");
     const defaultConfig = getDefaultConfig();
     const merged = { ...defaultConfig, ...parsed };
     // 嵌套项合并
     if (parsed.prompts) merged.prompts = { ...defaultConfig.prompts, ...parsed.prompts };
     if (parsed.pricing) merged.pricing = { ...defaultConfig.pricing, ...parsed.pricing };
-    if (parsed.providerSettings) merged.providerSettings = { ...defaultConfig.providerSettings, ...parsed.providerSettings };
+    if (parsed.providerSettings)
+      merged.providerSettings = { ...defaultConfig.providerSettings, ...parsed.providerSettings };
 
     const retryResult = ConfigSchema.safeParse(merged);
     if (retryResult.success) {
       return retryResult.data;
     }
-    
+
     console.error(`⚠️ 配置修复失败: ${retryResult.error.message}. 使用默认配置。`);
     return defaultConfig;
   } catch (error) {
-    console.error(`⚠️ 配置文件无法读取或格式错误，使用默认配置`);
+    console.error("⚠️ 配置文件无法读取或格式错误，使用默认配置");
     return getDefaultConfig();
   }
 }
@@ -243,7 +248,7 @@ export interface Progress {
 export function loadProgress(): Progress {
   // 尝试迁移旧进度
   migrateOldProgress();
-  
+
   const progressPath = join(getConfigDir(), PROGRESS_FILE);
 
   if (!existsSync(progressPath)) {

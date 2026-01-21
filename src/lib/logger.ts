@@ -1,7 +1,7 @@
-import { appendFileSync, existsSync, writeFileSync } from "fs";
-import { join } from "path";
-import type { Logger } from "./types";
+import { appendFileSync, existsSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { getConfigDir } from "./config-manager";
+import type { Logger } from "./types";
 
 const LOG_FILE = "debug.log";
 

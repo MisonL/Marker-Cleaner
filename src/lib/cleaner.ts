@@ -7,7 +7,7 @@ import type { BoundingBox } from "./types";
  */
 export async function cleanMarkersLocal(
   imageBuffer: Buffer,
-  boxes: BoundingBox[]
+  boxes: BoundingBox[],
 ): Promise<Buffer> {
   if (boxes.length === 0) {
     return imageBuffer;
@@ -100,7 +100,7 @@ function getNeighborAverage(
   width: number,
   height: number,
   x: number,
-  y: number
+  y: number,
 ): [number, number, number] {
   const neighbors: [number, number, number][] = [];
 
@@ -146,10 +146,10 @@ function getNeighborAverage(
 export async function convertFormat(
   imageBuffer: Buffer,
   format: "original" | "png" | "jpg" | "webp",
-  originalExt?: string
+  originalExt?: string,
 ): Promise<Buffer> {
   const ext = originalExt ? originalExt.toLowerCase() : "";
-  
+
   // 核心逻辑：检测输入 Buffer 的真实物理格式
   const header = imageBuffer.slice(0, 12).toString("hex");
   let actualType: "jpg" | "png" | "webp" | "unknown" = "unknown";
@@ -171,23 +171,23 @@ export async function convertFormat(
 
   // 情况 1: 如果是原始输出
   if (format === "original" || !format) {
-      // 只有当物理格式与目标扩展名完全一致时，才走“零损耗直出”
-      if (actualType === expectedType && actualType !== "unknown") {
-          return imageBuffer;
-      }
+    // 只有当物理格式与目标扩展名完全一致时，才走“零损耗直出”
+    if (actualType === expectedType && actualType !== "unknown") {
+      return imageBuffer;
+    }
 
-      // 如果不一致（如 AI 返回 JPEG 但原文件是 WebP），或者无法识别，则必须强制转码以实现名实对齐
-      if (expectedType === "jpg") {
-          return sharp(imageBuffer).withMetadata().jpeg({ quality: 90 }).toBuffer();
-      }
-      if (expectedType === "png") {
-          return sharp(imageBuffer).withMetadata().png().toBuffer();
-      }
-      if (expectedType === "webp") {
-          return sharp(imageBuffer).withMetadata().webp({ quality: 90 }).toBuffer();
-      }
+    // 如果不一致（如 AI 返回 JPEG 但原文件是 WebP），或者无法识别，则必须强制转码以实现名实对齐
+    if (expectedType === "jpg") {
+      return sharp(imageBuffer).withMetadata().jpeg({ quality: 90 }).toBuffer();
+    }
+    if (expectedType === "png") {
+      return sharp(imageBuffer).withMetadata().png().toBuffer();
+    }
+    if (expectedType === "webp") {
+      return sharp(imageBuffer).withMetadata().webp({ quality: 90 }).toBuffer();
+    }
 
-      return imageBuffer; // 彻底无法识别，兜底直出
+    return imageBuffer; // 彻底无法识别，兜底直出
   }
 
   // 情况 2: 显式指定了输出格式 (png/jpg/webp)
@@ -208,7 +208,10 @@ export async function convertFormat(
 /**
  * 获取文件扩展名
  */
-export function getOutputExtension(format: "original" | "png" | "jpg" | "webp", originalExt: string): string {
+export function getOutputExtension(
+  format: "original" | "png" | "jpg" | "webp",
+  originalExt: string,
+): string {
   if (format === "original") {
     return originalExt;
   }

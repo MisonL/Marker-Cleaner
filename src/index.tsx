@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from "react";
-import { render, Box, Text, useApp, useInput } from "ink";
+import { Box, Text, render, useApp, useInput } from "ink";
 import SelectInput from "ink-select-input";
-import TextInput from "ink-text-input"; // Added import
 import Spinner from "ink-spinner";
-import { loadConfig, saveConfig, resetConfig, type Config } from "./lib/config-manager";
+import TextInput from "ink-text-input"; // Added import
+import type React from "react";
+import { useEffect, useState } from "react";
 import { createProvider } from "./lib/ai";
+import { loadToken, loginWithAntigravity } from "./lib/antigravity/auth";
 import { BatchProcessor } from "./lib/batch-processor";
+import { type Config, loadConfig, resetConfig, saveConfig } from "./lib/config-manager";
 import { createLogger } from "./lib/logger";
-import { loginWithAntigravity, loadToken } from "./lib/antigravity/auth";
 
 // ============ 依赖检测 ============
 let sharpAvailable = true;
@@ -35,7 +36,7 @@ const App: React.FC = () => {
 
   const menuItems: MenuItem[] = [
     { label: "🚀 开始处理", value: "start" },
-    { label: "👁️  预览模式 (处理前 " + config.previewCount + " 张)", value: "preview" },
+    { label: `👁️  预览模式 (处理前 ${config.previewCount} 张)`, value: "preview" },
     { label: "⚙️  配置设置", value: "config" },
     { label: "🔄 恢复默认配置", value: "reset" },
     { label: "🚪 退出", value: "exit" },
@@ -54,11 +55,12 @@ const App: React.FC = () => {
       case "config":
         setScreen("config");
         break;
-      case "reset":
+      case "reset": {
         const newConfig = resetConfig();
         setConfig(newConfig);
         setStatus("✅ 已恢复默认配置");
         break;
+      }
       case "exit":
         exit();
         break;
@@ -69,13 +71,13 @@ const App: React.FC = () => {
     try {
       const hasToken = !!loadToken();
       const isAntigravity = config.provider === "antigravity";
-      
+
       if (!isAntigravity && !config.apiKey) {
         setError("❌ 请先配置 API Key");
         setScreen("menu");
         return;
       }
-      
+
       if (isAntigravity && !hasToken) {
         setError("❌ 请先登录 Antigravity 账号 (配置页按 'L')");
         setScreen("menu");
@@ -130,7 +132,7 @@ const App: React.FC = () => {
       </Box>
       <Box>
         <Text bold color="cyan">
-          ║   🧹 智能标记清除工具 v1.0           ║
+          ║ 🧹 智能标记清除工具 v1.0 ║
         </Text>
       </Box>
       <Box marginBottom={1}>
@@ -162,15 +164,26 @@ const App: React.FC = () => {
 
       {/* Sharp 依赖缺失警告 */}
       {screen === "menu" && !sharpAvailable && (
-        <Box marginBottom={1} borderStyle="round" borderColor="yellow" flexDirection="column" paddingX={1}>
-          <Text color="yellow" bold>⚠️  缺少依赖: sharp</Text>
+        <Box
+          marginBottom={1}
+          borderStyle="round"
+          borderColor="yellow"
+          flexDirection="column"
+          paddingX={1}
+        >
+          <Text color="yellow" bold>
+            ⚠️ 缺少依赖: sharp
+          </Text>
           <Text color="yellow">本地图像修复功能需要 sharp 模块。请运行:</Text>
-          <Text color="cyan" bold>  bun add sharp</Text>
+          <Text color="cyan" bold>
+            {" "}
+            bun add sharp
+          </Text>
         </Box>
       )}
 
       {/* Missing Configuration Warning */}
-      {screen === "menu" && (
+      {screen === "menu" &&
         (() => {
           const hasToken = !!loadToken();
           const needsGoogleKey = !config.apiKey && config.provider === "google";
@@ -178,19 +191,32 @@ const App: React.FC = () => {
           const needsAntigravityLogin = config.provider === "antigravity" && !hasToken;
 
           if (needsGoogleKey || needsOpenAIKey || needsAntigravityLogin) {
-            const providerLabel = config.provider === "google" ? "Google Gemini API" : config.provider;
+            const providerLabel =
+              config.provider === "google" ? "Google Gemini API" : config.provider;
             return (
-              <Box marginBottom={1} borderStyle="round" borderColor="red" flexDirection="column" paddingX={1}>
-                <Text color="red" bold>⚠️  服务未就绪</Text>
+              <Box
+                marginBottom={1}
+                borderStyle="round"
+                borderColor="red"
+                flexDirection="column"
+                paddingX={1}
+              >
+                <Text color="red" bold>
+                  ⚠️ 服务未就绪
+                </Text>
                 {needsAntigravityLogin ? (
-                  <Text color="red">请进入 "⚙️  配置设置" 按 'L' 键登录 Antigravity 账号。</Text>
+                  <Text color="red">请进入 "⚙️ 配置设置" 按 'L' 键登录 Antigravity 账号。</Text>
                 ) : (
                   <>
                     <Text color="red">当前 {providerLabel} 未配置 API Key。</Text>
                     {hasToken ? (
-                      <Text color="green" bold>💡 检测到您已登录 Antigravity，请在配置中切换 Provider 即可直接使用！</Text>
+                      <Text color="green" bold>
+                        💡 检测到您已登录 Antigravity，请在配置中切换 Provider 即可直接使用！
+                      </Text>
                     ) : (
-                      <Text color="red" dimColor>提示: 您也可以切换 Provider 为 "antigravity" 使用集成登录。</Text>
+                      <Text color="red" dimColor>
+                        提示: 您也可以切换 Provider 为 "antigravity" 使用集成登录。
+                      </Text>
                     )}
                   </>
                 )}
@@ -198,16 +224,13 @@ const App: React.FC = () => {
             );
           }
           return null;
-        })()
-      )}
+        })()}
 
       {/* Main Content */}
       {screen === "menu" && (
         <Box flexDirection="column">
           <Box marginBottom={1}>
-            <Text bold>
-              请选择操作:
-            </Text>
+            <Text bold>请选择操作:</Text>
           </Box>
           <SelectInput items={menuItems} onSelect={handleMenuSelect} />
         </Box>
@@ -290,7 +313,12 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
   const [loginMsg, setLoginMsg] = useState("");
 
   const fields: ConfigField[] = [
-    { key: "provider", label: "Provider", type: "select", options: ["openai", "antigravity", "google"] },
+    {
+      key: "provider",
+      label: "Provider",
+      type: "select",
+      options: ["openai", "antigravity", "google"],
+    },
     { key: "apiKey", label: "API Key", type: "password" },
     { key: "baseUrl", label: "代理地址", type: "text" },
     { key: "modelName", label: "模型名称", type: "text" },
@@ -303,10 +331,10 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
 
   useInput((input, key) => {
     if (isEditing) {
-        if (key.escape || key.return) {
-            setIsEditing(false);
-        }
-        return;
+      if (key.escape || key.return) {
+        setIsEditing(false);
+      }
+      return;
     }
 
     if (key.upArrow) {
@@ -314,100 +342,106 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
     } else if (key.downArrow) {
       setFocusIndex((i) => Math.min(fields.length - 1, i + 1));
     } else if (key.return) {
-        const field = fields[focusIndex];
-        if (!field) return;
+      const field = fields[focusIndex];
+      if (!field) return;
 
-        const configKey = field.key;
-        if (field.type === "boolean") {
-            const val = editConfig[configKey];
-            if (typeof val === "boolean") {
-                setEditConfig(prev => ({ ...prev, [configKey]: !val }));
-            }
-        } else if (field.type === "select" && field.options) {
-             const currentVal = editConfig[configKey];
-             if (typeof currentVal === "string") {
-                 const options = field.options;
-                 const nextIndex = (options.indexOf(currentVal) + 1) % options.length;
-                 const nextVal = options[nextIndex] as Config["provider"];
-                 if (nextVal !== undefined) {
-                     // 切换 Provider 时，保存当前 Provider 的配置到档案袋，并加载新 Provider 的档案袋配置
-                     if (configKey === "provider") {
-                         const prevProvider = currentVal as Config["provider"];
-                         const updatedSettings = {
-                             ...editConfig.providerSettings,
-                             [prevProvider]: {
-                                 apiKey: editConfig.apiKey,
-                                 baseUrl: editConfig.baseUrl,
-                                 modelName: editConfig.modelName
-                             }
-                         };
-                         const nextSettings = updatedSettings[nextVal];
-                         setEditConfig(prev => ({ 
-                             ...prev, 
-                             provider: nextVal,
-                             apiKey: nextSettings.apiKey || "",
-                             baseUrl: nextSettings.baseUrl || "",
-                             modelName: nextSettings.modelName || "",
-                             providerSettings: updatedSettings
-                         }));
-                     } else {
-                         setEditConfig(prev => ({ ...prev, [configKey]: nextVal }));
-                     }
-                 }
-             }
-        } else {
-            setIsEditing(true);
+      const configKey = field.key;
+      if (field.type === "boolean") {
+        const val = editConfig[configKey];
+        if (typeof val === "boolean") {
+          setEditConfig((prev) => ({ ...prev, [configKey]: !val }));
         }
+      } else if (field.type === "select" && field.options) {
+        const currentVal = editConfig[configKey];
+        if (typeof currentVal === "string") {
+          const options = field.options;
+          const nextIndex = (options.indexOf(currentVal) + 1) % options.length;
+          const nextVal = options[nextIndex] as Config["provider"];
+          if (nextVal !== undefined) {
+            // 切换 Provider 时，保存当前 Provider 的配置到档案袋，并加载新 Provider 的档案袋配置
+            if (configKey === "provider") {
+              const prevProvider = currentVal as Config["provider"];
+              const updatedSettings = {
+                ...editConfig.providerSettings,
+                [prevProvider]: {
+                  apiKey: editConfig.apiKey,
+                  baseUrl: editConfig.baseUrl,
+                  modelName: editConfig.modelName,
+                },
+              };
+              const nextSettings = updatedSettings[nextVal];
+              setEditConfig((prev) => ({
+                ...prev,
+                provider: nextVal,
+                apiKey: nextSettings.apiKey || "",
+                baseUrl: nextSettings.baseUrl || "",
+                modelName: nextSettings.modelName || "",
+                providerSettings: updatedSettings,
+              }));
+            } else {
+              setEditConfig((prev) => ({ ...prev, [configKey]: nextVal }));
+            }
+          }
+        }
+      } else {
+        setIsEditing(true);
+      }
     } else if (input === "l" && editConfig.provider === "antigravity") {
-        setLoginMsg("⌛️ 正在打开浏览器登录 Auth...");
-        loginWithAntigravity()
-            .then(token => {
-                setAuthState(token);
-                setLoginMsg("✅ 登录成功! (" + token.email + ")");
-            })
-            .catch(err => {
-                setLoginMsg("❌ 登录失败: " + err.message);
-            });
+      setLoginMsg("⌛️ 正在打开浏览器登录 Auth...");
+      loginWithAntigravity()
+        .then((token) => {
+          setAuthState(token);
+          setLoginMsg(`✅ 登录成功! (${token.email})`);
+        })
+        .catch((err) => {
+          setLoginMsg(`❌ 登录失败: ${err.message}`);
+        });
     } else if (input === "s") {
       // 保存前确保当前 Provider 的最新配置已同步回档案袋
       const finalConfig = {
-          ...editConfig,
-          providerSettings: {
-              ...editConfig.providerSettings,
-              [editConfig.provider]: {
-                  apiKey: editConfig.apiKey,
-                  baseUrl: editConfig.baseUrl,
-                  modelName: editConfig.modelName
-              }
-          }
+        ...editConfig,
+        providerSettings: {
+          ...editConfig.providerSettings,
+          [editConfig.provider]: {
+            apiKey: editConfig.apiKey,
+            baseUrl: editConfig.baseUrl,
+            modelName: editConfig.modelName,
+          },
+        },
       };
       onSave(finalConfig);
     } else if (key.escape) {
       onCancel();
     }
   });
-  
+
   const currentField = fields[focusIndex];
 
   return (
     <Box flexDirection="column">
       <Box marginBottom={1}>
-        <Text bold>
-          ⚙️ 配置设置 (Enter 编辑/切换, S 保存, Esc 取消)
-        </Text>
+        <Text bold>⚙️ 配置设置 (Enter 编辑/切换, S 保存, Esc 取消)</Text>
       </Box>
-      
+
       {editConfig.provider === "antigravity" && (
-          <Box borderStyle="round" borderColor={authState ? "green" : "red"} flexDirection="column" marginBottom={1} paddingX={1}>
-            <Text bold color={authState ? "green" : "red"}>
-                Antigravity Auth Status: {authState ? "已登录" : "未登录"}
+        <Box
+          borderStyle="round"
+          borderColor={authState ? "green" : "red"}
+          flexDirection="column"
+          marginBottom={1}
+          paddingX={1}
+        >
+          <Text bold color={authState ? "green" : "red"}>
+            Antigravity Auth Status: {authState ? "已登录" : "未登录"}
+          </Text>
+          {authState?.email && <Text>Email: {authState.email}</Text>}
+          {authState?.project_id && <Text>Project: {authState.project_id}</Text>}
+          <Box marginTop={1}>
+            <Text>
+              {loginMsg || (authState ? "按 'L' 重新登录" : "👉 按 'L' 键进行浏览器登录")}
             </Text>
-            {authState?.email && <Text>Email: {authState.email}</Text>}
-            {authState?.project_id && <Text>Project: {authState.project_id}</Text>}
-            <Box marginTop={1}>
-                <Text>{loginMsg || (authState ? "按 'L' 重新登录" : "👉 按 'L' 键进行浏览器登录")}</Text>
-            </Box>
           </Box>
+        </Box>
       )}
 
       {fields.map((field, index) => {
@@ -416,94 +450,100 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
         let displayValue = String(value);
 
         if (field.key === "provider") {
-            if (value === "google") displayValue = "Google Gemini API (需要tier1+层级)";
-            else if (value === "openai") displayValue = "OpenAI (需 GPT-4o)";
-            else if (value === "antigravity") displayValue = "Antigravity (集成登录)";
+          if (value === "google") displayValue = "Google Gemini API (需要tier1+层级)";
+          else if (value === "openai") displayValue = "OpenAI (需 GPT-4o)";
+          else if (value === "antigravity") displayValue = "Antigravity (集成登录)";
         }
 
         if (field.key === "apiKey" && value && !isEditing) {
-            displayValue = "********";
+          displayValue = "********";
         }
         if (field.key === "baseUrl" && !value) {
-            if (editConfig.provider === "openai") {
-                displayValue = "(必填，除非使用官方 API)";
-            } else if (editConfig.provider === "google") {
-                displayValue = "(可选，仅用于 API 代理)";
-            } else {
-                displayValue = "(默认)";
-            }
+          if (editConfig.provider === "openai") {
+            displayValue = "(必填，除非使用官方 API)";
+          } else if (editConfig.provider === "google") {
+            displayValue = "(可选，仅用于 API 代理)";
+          } else {
+            displayValue = "(默认)";
+          }
         }
         if (field.key === "modelName" && !value) {
-            if (editConfig.provider === "google") {
-                displayValue = "(例: gemini-2.0-flash-exp)";
-            } else if (editConfig.provider === "openai") {
-                displayValue = "(例: gpt-4o)";
-            } else if (editConfig.provider === "antigravity") {
-                displayValue = "(例: nano-banana-pro)";
-            } else {
-                displayValue = "(未设置)";
-            }
+          if (editConfig.provider === "google") {
+            displayValue = "(例: gemini-2.0-flash-exp)";
+          } else if (editConfig.provider === "openai") {
+            displayValue = "(例: gpt-4o)";
+          } else if (editConfig.provider === "antigravity") {
+            displayValue = "(例: nano-banana-pro)";
+          } else {
+            displayValue = "(未设置)";
+          }
         }
-        
-        let valComponent;
+
+        let valComponent: React.ReactNode;
         if (field.type === "password") {
-            if (isEditing && isFocused) {
-               valComponent = (
-                <TextInput
-                  value={String(editConfig[field.key])}
-                  onChange={(val) => setEditConfig((prev) => ({ ...prev, [field.key]: val }))}
-                  mask="*"
-                />
-               );
-            } else {
-               valComponent = (
-                <Text color="yellow">
-                  {editConfig[field.key] ? "*".repeat(String(editConfig[field.key]).length) : (editConfig.provider === "antigravity" ? "(通过‘L’键登录自动获取)" : "(未设置)")}
-                </Text>
-               );
-            }
-        } else if (field.type === "select") {
-            const isProvider = field.key === "provider";
+          if (isEditing && isFocused) {
             valComponent = (
-                <Text bold={isProvider} color={isProvider ? "magenta" : (isFocused ? "cyan" : undefined)}>
-                    {displayValue}
-                </Text>
+              <TextInput
+                value={String(editConfig[field.key])}
+                onChange={(val) => setEditConfig((prev) => ({ ...prev, [field.key]: val }))}
+                mask="*"
+              />
             );
-        } else {
-            if (isFocused && isEditing) {
-                valComponent = (
-                  <TextInput 
-                    value={String(value ?? "")}
-                    onChange={(val) => {
-                         if (field.key === "previewCount") {
-                             setEditConfig(prev => ({...prev, [field.key]: parseInt(val) || 0 }));
-                         } else {
-                             setEditConfig(prev => ({...prev, [field.key]: val }));
-                         }
-                    }}
-                    onSubmit={() => setIsEditing(false)}
-                  />
-                );
-            } else {
-                valComponent = <Text color={isFocused ? "cyan" : undefined}>{displayValue}</Text>;
-            }
-        }
-        
-        return (
-            <Box key={field.key}>
-              <Text color={isFocused ? "cyan" : undefined}>
-                {isFocused ? "▶ " : "  "}
-                {field.label}:{" "}
+          } else {
+            valComponent = (
+              <Text color="yellow">
+                {editConfig[field.key]
+                  ? "*".repeat(String(editConfig[field.key]).length)
+                  : editConfig.provider === "antigravity"
+                    ? "(通过‘L’键登录自动获取)"
+                    : "(未设置)"}
               </Text>
-              {valComponent}
-            </Box>
+            );
+          }
+        } else if (field.type === "select") {
+          const isProvider = field.key === "provider";
+          valComponent = (
+            <Text bold={isProvider} color={isProvider ? "magenta" : isFocused ? "cyan" : undefined}>
+              {displayValue}
+            </Text>
+          );
+        } else {
+          if (isFocused && isEditing) {
+            valComponent = (
+              <TextInput
+                value={String(value ?? "")}
+                onChange={(val) => {
+                  if (field.key === "previewCount") {
+                    setEditConfig((prev) => ({ ...prev, [field.key]: Number.parseInt(val) || 0 }));
+                  } else {
+                    setEditConfig((prev) => ({ ...prev, [field.key]: val }));
+                  }
+                }}
+                onSubmit={() => setIsEditing(false)}
+              />
+            );
+          } else {
+            valComponent = <Text color={isFocused ? "cyan" : undefined}>{displayValue}</Text>;
+          }
+        }
+
+        return (
+          <Box key={field.key}>
+            <Text color={isFocused ? "cyan" : undefined}>
+              {isFocused ? "▶ " : "  "}
+              {field.label}:{" "}
+            </Text>
+            {valComponent}
+          </Box>
         );
       })}
 
       {/* Footer */}
       <Box marginTop={2} flexDirection="column">
         <Text dimColor>按 Esc 返回 | 按 ↑↓ 导航 | 按 Enter 确认/编辑</Text>
-        <Text dimColor>按 S 保存配置{editConfig.provider === "antigravity" ? " | 按 L 登录 Antigravity" : ""}</Text>
+        <Text dimColor>
+          按 S 保存配置{editConfig.provider === "antigravity" ? " | 按 L 登录 Antigravity" : ""}
+        </Text>
       </Box>
     </Box>
   );

@@ -1,37 +1,37 @@
-import type { AIProvider, ProcessResult, BoundingBox } from "../types";
+import { randomUUID } from "node:crypto";
 import type { Config } from "../config-manager";
+import type { AIProvider, BoundingBox, ProcessResult } from "../types";
+import { detectMimeType, getPlatformInfo, parseBoxesFromText } from "../utils";
 import { getAccessToken, loadToken } from "./auth";
-import { randomUUID } from "crypto";
-import { detectMimeType, parseBoxesFromText, getPlatformInfo } from "../utils";
 
 const ENDPOINT = "https://daily-cloudcode-pa.sandbox.googleapis.com";
 
 interface AntigravityContentPart {
-    text?: string;
-    inlineData?: {
-        mimeType: string;
-        data: string;
-    };
+  text?: string;
+  inlineData?: {
+    mimeType: string;
+    data: string;
+  };
 }
 
 interface AntigravityCandidate {
-    content: {
-        parts: AntigravityContentPart[];
-    };
-    finishReason?: string;
+  content: {
+    parts: AntigravityContentPart[];
+  };
+  finishReason?: string;
 }
 
 interface AntigravityUsageMetadata {
-    promptTokenCount: number;
-    candidatesTokenCount: number;
-    totalTokenCount: number;
+  promptTokenCount: number;
+  candidatesTokenCount: number;
+  totalTokenCount: number;
 }
 
 interface AntigravityResponsePayload {
-    response: {
-        candidates: AntigravityCandidate[];
-        usageMetadata: AntigravityUsageMetadata;
-    };
+  response: {
+    candidates: AntigravityCandidate[];
+    usageMetadata: AntigravityUsageMetadata;
+  };
 }
 
 export class AntigravityProvider implements AIProvider {
@@ -42,17 +42,18 @@ export class AntigravityProvider implements AIProvider {
   constructor(config: Config) {
     this.modelName = config.modelName;
     // Guess support based on name, similar to Google provider
-    this.supportsImageEdit = this.modelName.toLowerCase().includes("image") || 
-                             this.modelName.toLowerCase().includes("pro"); 
+    this.supportsImageEdit =
+      this.modelName.toLowerCase().includes("image") ||
+      this.modelName.toLowerCase().includes("pro");
   }
 
   async processImage(imageBuffer: Buffer, prompt: string): Promise<ProcessResult> {
     try {
       const token = await getAccessToken();
       const tokenData = loadToken(); // needed for project_id
-      
+
       if (!tokenData?.project_id) {
-          throw new Error("Missing Project ID. Please re-login.");
+        throw new Error("Missing Project ID. Please re-login.");
       }
 
       const base64 = imageBuffer.toString("base64");
@@ -89,7 +90,8 @@ export class AntigravityProvider implements AIProvider {
           "Content-Type": "application/json",
           "User-Agent": `antigravity/1.11.5 ${platform}/${arch}`,
           "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
-          "Client-Metadata": '{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}',
+          "Client-Metadata":
+            '{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}',
         },
         body: JSON.stringify(body),
       });
@@ -98,9 +100,8 @@ export class AntigravityProvider implements AIProvider {
         throw new Error(`Antigravity API Error ${response.status}: ${await response.text()}`);
       }
 
-      const result = await response.json() as AntigravityResponsePayload;
+      const result = (await response.json()) as AntigravityResponsePayload;
       return this.parseResponse(result);
-
     } catch (error) {
       return {
         success: false,

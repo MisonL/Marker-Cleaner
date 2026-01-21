@@ -1,4 +1,4 @@
-import { createHash } from "crypto";
+import { createHash } from "node:crypto";
 
 /**
  * 检测图片 MIME 类型（基于魔数）
@@ -29,11 +29,16 @@ export function parseBoxesFromText(text: string): Array<{
     return parsed
       .filter(
         (item): item is { ymin: number; xmin: number; ymax: number; xmax: number } =>
-          typeof item === "object" && item !== null &&
-          "ymin" in item && typeof item.ymin === "number" &&
-          "xmin" in item && typeof item.xmin === "number" &&
-          "ymax" in item && typeof item.ymax === "number" &&
-          "xmax" in item && typeof item.xmax === "number"
+          typeof item === "object" &&
+          item !== null &&
+          "ymin" in item &&
+          typeof item.ymin === "number" &&
+          "xmin" in item &&
+          typeof item.xmin === "number" &&
+          "ymax" in item &&
+          typeof item.ymax === "number" &&
+          "xmax" in item &&
+          typeof item.xmax === "number",
       )
       .map((item) => ({
         ymin: item.ymin,
@@ -50,8 +55,8 @@ export function parseBoxesFromText(text: string): Array<{
  * 获取平台信息用于 User-Agent
  */
 export function getPlatformInfo(): { platform: string; arch: string } {
-  const platform = process.platform === "win32" ? "windows" : 
-                   process.platform === "darwin" ? "macos" : "linux";
+  const platform =
+    process.platform === "win32" ? "windows" : process.platform === "darwin" ? "macos" : "linux";
   const arch = process.arch === "x64" ? "amd64" : process.arch;
   return { platform, arch };
 }

@@ -1,11 +1,11 @@
-import { createServer } from "http";
-import { createHash, randomBytes } from "crypto";
+import { createHash, randomBytes } from "node:crypto";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
+import { join } from "node:path";
 import open from "open";
-import { writeFileSync, readFileSync, existsSync, unlinkSync } from "fs";
-import { join } from "path";
 
-import { CLIENT_ID, CLIENT_SECRET } from "./constants";
 import { getConfigDir } from "../config-manager";
+import { CLIENT_ID, CLIENT_SECRET } from "./constants";
 
 // ============ Constants ============
 const REDIRECT_URI = "http://localhost:51121/oauth-callback";
@@ -28,7 +28,7 @@ function getTokenFilePath(): string {
 function migrateOldToken(): void {
   const oldTokenPath = join(process.cwd(), TOKEN_FILE);
   const newTokenPath = getTokenFilePath();
-  
+
   if (existsSync(oldTokenPath) && !existsSync(newTokenPath)) {
     try {
       const oldContent = readFileSync(oldTokenPath, "utf-8");
@@ -62,7 +62,7 @@ interface AntigravityUserInfo {
 }
 
 interface LoadCodeAssistResponse {
-    cloudaicompanionProject?: { id: string } | string;
+  cloudaicompanionProject?: { id: string } | string;
 }
 
 // ============ PKCE Utils ============
@@ -89,13 +89,13 @@ export function loginWithAntigravity(): Promise<TokenStore> {
   return new Promise((resolve, reject) => {
     const server = createServer((req, res) => {
       const url = new URL(req.url || "/", `http://localhost:${port}`);
-      
+
       if (url.pathname === "/oauth-callback") {
         const code = url.searchParams.get("code");
         const error = url.searchParams.get("error");
-        
+
         if (error) {
-          res.end("Login failed: " + error);
+          res.end(`Login failed: ${error}`);
           server.close();
           reject(new Error(error));
           return;
@@ -129,7 +129,7 @@ export function loginWithAntigravity(): Promise<TokenStore> {
       authUrl.searchParams.set("code_challenge", challenge);
       authUrl.searchParams.set("code_challenge_method", "S256");
       authUrl.searchParams.set("access_type", "offline");
-      
+
       console.log("Opening browser for login...");
       open(authUrl.toString());
     });
@@ -154,64 +154,65 @@ async function exchangeToken(code: string, verifier: string): Promise<TokenStore
     throw new Error(await res.text());
   }
 
-  const data = await res.json() as AntigravityTokenResponse;
+  const data = (await res.json()) as AntigravityTokenResponse;
   const now = Date.now();
-  
+
   // Get User Info for email
   let email = "";
   try {
-      const userRes = await fetch("https://www.googleapis.com/oauth2/v1/userinfo?alt=json", {
-          headers: { Authorization: `Bearer ${data.access_token}` }
-      });
-      if (userRes.ok) {
-          const userData = await userRes.json() as AntigravityUserInfo;
-          email = userData.email;
-      }
+    const userRes = await fetch("https://www.googleapis.com/oauth2/v1/userinfo?alt=json", {
+      headers: { Authorization: `Bearer ${data.access_token}` },
+    });
+    if (userRes.ok) {
+      const userData = (await userRes.json()) as AntigravityUserInfo;
+      email = userData.email;
+    }
   } catch (e) {}
 
   // Resolve Project ID (Try Prod First)
   let projectId = "";
   try {
-      projectId = await fetchProjectID(data.access_token);
+    projectId = await fetchProjectID(data.access_token);
   } catch (e) {}
 
   return {
     access_token: data.access_token,
     refresh_token: data.refresh_token,
-    expires_at: now + (data.expires_in * 1000),
+    expires_at: now + data.expires_in * 1000,
     project_id: projectId,
-    email
+    email,
   };
 }
 
 async function fetchProjectID(accessToken: string): Promise<string> {
-    const url = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
-    const res = await fetch(url, {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-            "User-Agent": "antigravity/1.11.5 windows/amd64",
-            "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
-            "Client-Metadata": '{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}',
-        },
-        body: JSON.stringify({
-            metadata: {
-                ideType: "IDE_UNSPECIFIED",
-                platform: "PLATFORM_UNSPECIFIED",
-                pluginType: "GEMINI",
-            },
-        }),
-    });
-    
-    if (res.ok) {
-        const data = await res.json() as LoadCodeAssistResponse;
-        if (typeof data.cloudaicompanionProject === 'string') {
-            return data.cloudaicompanionProject || "";
-        }
-        return data.cloudaicompanionProject?.id || "";
+  const url = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "User-Agent": "antigravity/1.11.5 windows/amd64",
+      "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
+      "Client-Metadata":
+        '{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}',
+    },
+    body: JSON.stringify({
+      metadata: {
+        ideType: "IDE_UNSPECIFIED",
+        platform: "PLATFORM_UNSPECIFIED",
+        pluginType: "GEMINI",
+      },
+    }),
+  });
+
+  if (res.ok) {
+    const data = (await res.json()) as LoadCodeAssistResponse;
+    if (typeof data.cloudaicompanionProject === "string") {
+      return data.cloudaicompanionProject || "";
     }
-    return "";
+    return data.cloudaicompanionProject?.id || "";
+  }
+  return "";
 }
 
 export function saveToken(token: TokenStore) {
@@ -221,7 +222,7 @@ export function saveToken(token: TokenStore) {
 export function loadToken(): TokenStore | null {
   // 尝试迁移旧 Token
   migrateOldToken();
-  
+
   const path = getTokenFilePath();
   if (!existsSync(path)) return null;
   try {
@@ -252,16 +253,16 @@ export async function getAccessToken(): Promise<string> {
   });
 
   if (!res.ok) throw new Error("Failed to refresh token");
-  const data = await res.json() as AntigravityTokenResponse;
-  
+  const data = (await res.json()) as AntigravityTokenResponse;
+
   const newToken: TokenStore = {
     ...token,
     access_token: data.access_token,
-    expires_at: Date.now() + (data.expires_in * 1000),
+    expires_at: Date.now() + data.expires_in * 1000,
     // Update refresh token if returned
-    refresh_token: data.refresh_token || token.refresh_token
+    refresh_token: data.refresh_token || token.refresh_token,
   };
-  
+
   saveToken(newToken);
   return newToken.access_token;
 }

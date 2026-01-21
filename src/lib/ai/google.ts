@@ -1,6 +1,10 @@
-import { GoogleGenerativeAI, type GenerateContentResult, type RequestOptions } from "@google/generative-ai";
-import type { AIProvider, ProcessResult } from "../types";
+import {
+  type GenerateContentResult,
+  GoogleGenerativeAI,
+  type RequestOptions,
+} from "@google/generative-ai";
 import type { Config } from "../config-manager";
+import type { AIProvider, ProcessResult } from "../types";
 import { detectMimeType, parseBoxesFromText } from "../utils";
 
 export class GoogleProvider implements AIProvider {
@@ -30,10 +34,7 @@ export class GoogleProvider implements AIProvider {
       const base64 = imageBuffer.toString("base64");
       const mimeType = detectMimeType(imageBuffer);
 
-      const model = this.client.getGenerativeModel(
-        { model: this.modelName },
-        this.requestOptions
-      );
+      const model = this.client.getGenerativeModel({ model: this.modelName }, this.requestOptions);
       const response = await model.generateContent([
         {
           inlineData: {

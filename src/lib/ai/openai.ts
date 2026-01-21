@@ -1,6 +1,6 @@
 import OpenAI from "openai";
-import type { AIProvider, ProcessResult } from "../types";
 import type { Config } from "../config-manager";
+import type { AIProvider, ProcessResult } from "../types";
 import { detectMimeType, parseBoxesFromText } from "../utils";
 
 export class OpenAIProvider implements AIProvider {
@@ -83,4 +83,3 @@ export class OpenAIProvider implements AIProvider {
     };
   }
 }
-

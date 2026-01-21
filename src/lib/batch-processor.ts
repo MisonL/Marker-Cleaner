@@ -1,9 +1,9 @@
-import { readdirSync, statSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import { join, relative, dirname, extname, basename } from "path";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, extname, join, relative } from "node:path";
+import { cleanMarkersLocal, convertFormat, getOutputExtension } from "./cleaner";
 import type { Config, Progress } from "./config-manager";
 import { loadProgress, saveProgress } from "./config-manager";
 import type { AIProvider, BatchTask, Logger } from "./types";
-import { cleanMarkersLocal, convertFormat, getOutputExtension } from "./cleaner";
 
 const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"];
 
@@ -83,9 +83,8 @@ export class BatchProcessor {
 
     if (this.config.preserveStructure) {
       return join(this.config.outputDir, dirName, baseName + newExt);
-    } else {
-      return join(this.config.outputDir, baseName + newExt);
     }
+    return join(this.config.outputDir, baseName + newExt);
   }
 
   /**
@@ -100,9 +99,7 @@ export class BatchProcessor {
    * 执行批处理
    */
   async process(tasks: BatchTask[], previewOnly = false): Promise<void> {
-    const pendingTasks = previewOnly
-      ? tasks.slice(0, this.config.previewCount)
-      : tasks;
+    const pendingTasks = previewOnly ? tasks.slice(0, this.config.previewCount) : tasks;
 
     let current = 0;
     const total = pendingTasks.length;
@@ -115,13 +112,14 @@ export class BatchProcessor {
 
       try {
         const result = await this.processOne(task, previewOnly);
-        
+
         // 实时成本计算与 UI 反馈
         const pricing = this.config.pricing;
-        const taskCost = (((result.inputTokens || 0) / 1_000_000) * pricing.inputTokenPer1M) +
-                         (((result.outputTokens || 0) / 1_000_000) * pricing.outputTokenPer1M) +
-                         (result.isImageEdit ? pricing.imageOutput : 0);
-        
+        const taskCost =
+          ((result.inputTokens || 0) / 1_000_000) * pricing.inputTokenPer1M +
+          ((result.outputTokens || 0) / 1_000_000) * pricing.outputTokenPer1M +
+          (result.isImageEdit ? pricing.imageOutput : 0);
+
         sessionCost += taskCost;
         this.onCostUpdate?.(sessionCost);
 
@@ -129,7 +127,7 @@ export class BatchProcessor {
           if (result.inputTokens) this.progress.totalInputTokens += result.inputTokens;
           if (result.outputTokens) this.progress.totalOutputTokens += result.outputTokens;
           if (result.isImageEdit) this.progress.totalImageOutputs++;
-          
+
           this.progress.totalCost = sessionCost; // 正式模式同步持久化成本
           this.progress.processedFiles.push(task.relativePath);
           saveProgress(this.progress);
@@ -143,11 +141,14 @@ export class BatchProcessor {
     this.logger.info(`💰 会话累计成本: $${sessionCost.toFixed(4)}`);
   }
 
-  private async processOne(task: BatchTask, previewOnly = false): Promise<{ 
-    success: boolean; 
-    inputTokens: number; 
-    outputTokens: number; 
-    isImageEdit: boolean 
+  private async processOne(
+    task: BatchTask,
+    previewOnly = false,
+  ): Promise<{
+    success: boolean;
+    inputTokens: number;
+    outputTokens: number;
+    isImageEdit: boolean;
   }> {
     const inputBuffer = readFileSync(task.absoluteInputPath);
 
@@ -175,12 +176,16 @@ export class BatchProcessor {
       outputBuffer = await cleanMarkersLocal(inputBuffer, result.boxes);
     } else {
       // 没有检测到标记，直接复制原图
-      this.logger.debug(`未检测到标记，保持原图`);
+      this.logger.debug("未检测到标记，保持原图");
       outputBuffer = inputBuffer;
     }
 
     // 转换格式
-    outputBuffer = await convertFormat(outputBuffer, this.config.outputFormat, extname(task.relativePath));
+    outputBuffer = await convertFormat(
+      outputBuffer,
+      this.config.outputFormat,
+      extname(task.relativePath),
+    );
 
     // 确保输出目录存在
     const outputDir = dirname(task.absoluteOutputPath);
@@ -196,7 +201,7 @@ export class BatchProcessor {
       success: true,
       inputTokens: result.inputTokens || 0,
       outputTokens: result.outputTokens || 0,
-      isImageEdit
+      isImageEdit,
     };
   }
 
