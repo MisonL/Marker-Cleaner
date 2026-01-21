@@ -89,7 +89,8 @@ export const ConfigSchema = z.object({
   // 高级配置
   previewCount: z.number().min(0).default(3),
   debugLog: z.boolean().default(false),
-
+  budgetLimit: z.number().default(0), // 0 means disabled, in USD
+  
   // 定价配置
   pricing: PricingSchema.default({
     inputTokenPer1M: 0.15,

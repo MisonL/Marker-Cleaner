@@ -4,6 +4,8 @@ import { cleanMarkersLocal, convertFormat, getOutputExtension } from "./cleaner"
 import type { Config, Progress } from "./config-manager";
 import { loadProgress, saveProgress } from "./config-manager";
 import type { AIProvider, BatchTask, Logger } from "./types";
+import { generateHtmlReport } from "./report-generator";
+import { formatDuration } from "./utils";
 
 const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"];
 
@@ -11,7 +13,17 @@ export interface BatchProcessorOptions {
   config: Config;
   provider: AIProvider;
   logger: Logger;
-  onProgress?: (current: number, total: number, file: string) => void;
+  onProgress?: (
+    current: number,
+    total: number,
+    file: string,
+    stats?: {
+      lastTaskTokens?: { input: number; output: number };
+      lastTaskDuration?: number;
+      lastTaskThumbnail?: Buffer;
+      accumulatedCost?: number;
+    }
+  ) => void;
   onCostUpdate?: (cost: number) => void;
 }
 
@@ -20,8 +32,9 @@ export class BatchProcessor {
   private provider: AIProvider;
   private logger: Logger;
   private progress: Progress;
-  private onProgress?: (current: number, total: number, file: string) => void;
+  private onProgress?: BatchProcessorOptions["onProgress"];
   private onCostUpdate?: (cost: number) => void;
+  private reportData: any[] = [];
 
   constructor(options: BatchProcessorOptions) {
     this.config = options.config;
@@ -122,14 +135,23 @@ export class BatchProcessor {
     let current = 0;
     const total = pendingTasks.length;
     let sessionCost = this.progress.totalCost;
+    this.reportData = [];
 
     for (const task of pendingTasks) {
+      // 成本熔断检查
+      if (this.config.budgetLimit > 0 && sessionCost >= this.config.budgetLimit) {
+        this.logger.warn(`🛑 已达到成本预算上限 ($${this.config.budgetLimit})，熔断机制触发。`);
+        break;
+      }
+
       current++;
-      this.onProgress?.(current, total, task.relativePath);
+      const taskStartTime = Date.now();
       this.logger.info(`[${current}/${total}] 处理: ${task.relativePath}`);
 
       try {
         const result = await this.processOne(task, previewOnly);
+        const taskEndTime = Date.now();
+        const duration = taskEndTime - taskStartTime;
 
         // 实时成本计算与 UI 反馈
         const pricing = this.config.pricing;
@@ -140,6 +162,25 @@ export class BatchProcessor {
 
         sessionCost += taskCost;
         this.onCostUpdate?.(sessionCost);
+
+        this.onProgress?.(current, total, task.relativePath, {
+          lastTaskTokens: { input: result.inputTokens, output: result.outputTokens },
+          lastTaskDuration: duration,
+          lastTaskThumbnail: result.outputBuffer,
+          accumulatedCost: sessionCost,
+        });
+
+        // 收集报告数据
+        this.reportData.push({
+            file: task.relativePath,
+            inputTokens: result.inputTokens,
+            outputTokens: result.outputTokens,
+            cost: taskCost,
+            duration: duration,
+            success: true,
+            outputBuffer: result.outputBuffer,
+            inputBuffer: readFileSync(task.absoluteInputPath) // 用于后期生成对比报表
+        });
 
         if (!previewOnly) {
           if (result.inputTokens) this.progress.totalInputTokens += result.inputTokens;
@@ -152,11 +193,32 @@ export class BatchProcessor {
         }
       } catch (error) {
         this.logger.error(`处理失败: ${task.relativePath} - ${error}`);
+        this.reportData.push({
+            file: task.relativePath,
+            success: false,
+            error: String(error)
+        });
       }
     }
 
     this.logger.info(`✅ 处理完成: ${current}/${total}`);
     this.logger.info(`💰 会话累计成本: $${sessionCost.toFixed(4)}`);
+    
+    if (this.reportData.length > 0 && !previewOnly) {
+        this.generateReport();
+    }
+  }
+
+  private generateReport() {
+    const reportName = `report_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.html`;
+    const reportPath = join(this.config.outputDir, reportName);
+    this.logger.info(`📊 正在生成处理报告: ${reportName}`);
+    
+    try {
+        generateHtmlReport(reportPath, this.reportData);
+    } catch (error) {
+        this.logger.error(`生成报告失败: ${error}`);
+    }
   }
 
   private async processOne(
@@ -167,6 +229,7 @@ export class BatchProcessor {
     inputTokens: number;
     outputTokens: number;
     isImageEdit: boolean;
+    outputBuffer: Buffer;
   }> {
     const inputBuffer = readFileSync(task.absoluteInputPath);
 
@@ -220,6 +283,7 @@ export class BatchProcessor {
       inputTokens: result.inputTokens || 0,
       outputTokens: result.outputTokens || 0,
       isImageEdit,
+      outputBuffer,
     };
   }
 

@@ -9,6 +9,7 @@ import { loadToken, loginWithAntigravity } from "./lib/antigravity/auth";
 import { BatchProcessor } from "./lib/batch-processor";
 import { type Config, loadConfig, resetConfig, saveConfig } from "./lib/config-manager";
 import { createLogger } from "./lib/logger";
+import { formatDuration, renderImageToTerminal } from "./lib/utils";
 
 // ============ 依赖检测 ============
 let sharpAvailable = true;
@@ -32,6 +33,8 @@ const App: React.FC = () => {
   const [status, setStatus] = useState("");
   const [progress, setProgress] = useState({ current: 0, total: 0, file: "" });
   const [cost, setCost] = useState(0);
+  const [thumbnail, setThumbnail] = useState("");
+  const [lastStats, setLastStats] = useState<{ tokens?: { input: number, output: number }, duration?: number }>({});
   const [error, setError] = useState("");
 
   const menuItems: MenuItem[] = [
@@ -90,8 +93,14 @@ const App: React.FC = () => {
         config,
         provider,
         logger,
-        onProgress: (current, total, file) => {
+        onProgress: (current, total, file, stats) => {
           setProgress({ current, total, file });
+          if (stats?.lastTaskTokens || stats?.lastTaskDuration) {
+            setLastStats({ tokens: stats.lastTaskTokens, duration: stats.lastTaskDuration });
+          }
+          if (stats?.lastTaskThumbnail) {
+              setThumbnail(renderImageToTerminal(stats.lastTaskThumbnail));
+          }
         },
         onCostUpdate: (newCost) => {
           setCost(newCost);
@@ -264,7 +273,29 @@ const App: React.FC = () => {
                 进度: {progress.current}/{progress.total}
               </Text>
               <Text dimColor>当前: {progress.file}</Text>
-              <Text color="yellow">💰 累计成本: ${cost.toFixed(4)}</Text>
+              
+              {thumbnail && (
+                <Box borderStyle="single" borderColor="gray" paddingX={1} marginBottom={0}>
+                  <Text>{thumbnail}</Text>
+                </Box>
+              )}
+
+              {lastStats.tokens && (
+                <Text color="cyan">
+                  ⚡ 上个任务: {lastStats.tokens.input + lastStats.tokens.output} tokens ({lastStats.tokens.input} In / {lastStats.tokens.output} Out)
+                </Text>
+              )}
+              {lastStats.duration !== undefined && (
+                <Text color="gray">
+                  ⏱️ 耗时: {formatDuration(lastStats.duration)}
+                </Text>
+              )}
+              <Box marginTop={1}>
+                <Text color="yellow">💰 累计成本: ${cost.toFixed(4)}</Text>
+                {config.budgetLimit > 0 && (
+                  <Text dimColor> (上限: ${config.budgetLimit})</Text>
+                )}
+              </Box>
             </Box>
           )}
         </Box>
@@ -387,6 +418,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
     { key: "outputDir", label: "输出目录", type: "text" },
     { key: "recursive", label: "递归遍历", type: "boolean" },
     { key: "previewCount", label: "预览数量", type: "text" },
+    { key: "budgetLimit", label: "成本熔断 (USD)", type: "text" },
     { key: "debugLog", label: "Debug 日志", type: "boolean" },
     
     // Advanced Fields
@@ -630,8 +662,8 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
               <TextInput
                 value={String(value ?? "")}
                 onChange={(val) => {
-                  if (field.key === "previewCount") {
-                    setEditConfig((prev) => setNestedValue(prev, field.key, Number.parseInt(val) || 0));
+                  if (field.key === "previewCount" || field.key === "budgetLimit") {
+                    setEditConfig((prev) => setNestedValue(prev, field.key, Number.parseFloat(val) || 0));
                   } else {
                     setEditConfig((prev) => setNestedValue(prev, field.key, val));
                   }
