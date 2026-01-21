@@ -82,13 +82,12 @@ function generatePKCE() {
 
 // ============ Auth Logic ============
 
-export async function loginWithAntigravity(): Promise<TokenStore> {
-  return new Promise(async (resolve, reject) => {
-    const { verifier, challenge } = generatePKCE();
-    const port = 51121;
-    
-    // 1. Start Local Server
-    const server = createServer(async (req, res) => {
+export function loginWithAntigravity(): Promise<TokenStore> {
+  const { verifier, challenge } = generatePKCE();
+  const port = 51121;
+
+  return new Promise((resolve, reject) => {
+    const server = createServer((req, res) => {
       const url = new URL(req.url || "/", `http://localhost:${port}`);
       
       if (url.pathname === "/oauth-callback") {
@@ -106,20 +105,22 @@ export async function loginWithAntigravity(): Promise<TokenStore> {
           res.end("Login successful! You can close this window now.");
           server.close();
 
-          try {
-            // 2. Exchange Token
-            const tokens = await exchangeToken(code, verifier);
-            saveToken(tokens);
-            resolve(tokens);
-          } catch (err) {
-            reject(err);
-          }
+          // 使用 .then/.catch 代替 async/await，避免在回调中使用 async
+          exchangeToken(code, verifier)
+            .then((tokens) => {
+              saveToken(tokens);
+              resolve(tokens);
+            })
+            .catch(reject);
         }
       }
     });
 
+    server.on("error", (err) => {
+      reject(new Error(`Failed to start OAuth server: ${err.message}`));
+    });
+
     server.listen(port, () => {
-      // 3. Open Browser
       const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       authUrl.searchParams.set("client_id", CLIENT_ID);
       authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
