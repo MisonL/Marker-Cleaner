@@ -56,7 +56,8 @@ export class OpenAIProvider implements AIProvider {
           });
 
           return this.parseResponse(response);
-        } catch (error: any) { // Keep any here for status/message access shorthand, or use type guard
+        } catch (error: any) {
+          // Keep any here for status/message access shorthand, or use type guard
           lastError = error;
           const status = error?.status || error?.response?.status;
           const message = error?.message || String(error);

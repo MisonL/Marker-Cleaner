@@ -227,6 +227,7 @@ const App: React.FC = () => {
       }
       case "exit":
         exit();
+        setTimeout(() => process.exit(0), 100); // 强制退出以避免挂起
         break;
     }
   };
@@ -788,7 +789,19 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
                 setManualModelMode(true);
                 setEditConfig((prev) => setNestedValue(prev, configKey, "")); // 清空以供输入
               } else {
-                setEditConfig((prev) => setNestedValue(prev, configKey, nextVal));
+                // 处理数字类型输入
+                let finalVal: string | number | boolean = nextVal;
+                if (
+                  configKey === "concurrency" ||
+                  configKey === "taskTimeout" ||
+                  configKey === "budgetLimit"
+                ) {
+                  const numVal = Number.parseFloat(String(nextVal));
+                  if (!isNaN(numVal)) {
+                    finalVal = numVal;
+                  }
+                }
+                setEditConfig((prev) => setNestedValue(prev, configKey, finalVal));
               }
             }
           }
@@ -983,13 +996,28 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
               <TextInput
                 value={String(value ?? "")}
                 onChange={(val) => {
-                  if (field.key === "previewCount" || field.key === "budgetLimit") {
+                  if (field.key === "concurrency" || field.key === "taskTimeout") {
+                    const numVal = Number.parseFloat(val);
+                    if (Number.isNaN(numVal)) {
+                      setEditConfig((prev) => setNestedValue(prev, field.key, 0));
+                      return;
+                    }
+                    const minVal = field.key === "concurrency" ? 1 : 1000;
                     setEditConfig((prev) =>
-                      setNestedValue(prev, field.key, Number.parseFloat(val) || 0),
+                      setNestedValue(prev, field.key, Math.max(numVal, minVal)),
                     );
-                  } else {
-                    setEditConfig((prev) => setNestedValue(prev, field.key, val));
+                    return;
                   }
+
+                  if (field.key === "previewCount" || field.key === "budgetLimit") {
+                    const numVal = Number.parseFloat(val);
+                    setEditConfig((prev) =>
+                      setNestedValue(prev, field.key, Number.isNaN(numVal) ? 0 : numVal),
+                    );
+                    return;
+                  }
+
+                  setEditConfig((prev) => setNestedValue(prev, field.key, val));
                 }}
                 onSubmit={() => setIsEditing(false)}
               />

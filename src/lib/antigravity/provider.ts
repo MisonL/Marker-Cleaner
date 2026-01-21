@@ -73,14 +73,16 @@ export class AntigravityProvider implements AIProvider {
         lastError = new Error(result.error);
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+        const errorMsg = lastError.message.toLowerCase();
 
         // 如果是 429 或者网络错误，等一下再重试
         const isRetryable =
-          lastError.message.includes("429") ||
-          lastError.message.includes("closed") ||
-          lastError.message.includes("socket") ||
-          lastError.message.includes("timeout") ||
-          lastError.message.includes("50");
+          errorMsg.includes("429") ||
+          errorMsg.includes("closed") ||
+          errorMsg.includes("socket") ||
+          errorMsg.includes("timeout") ||
+          errorMsg.includes("50") ||
+          errorMsg.includes("econnreset");
 
         if (isRetryable && i < maxRetries - 1) {
           const delay = 2 ** i * 1000;

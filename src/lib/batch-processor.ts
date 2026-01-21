@@ -197,8 +197,14 @@ export class BatchProcessor {
         // 任务开始前先发出一次进度通知
         this.onProgress?.(current, total, task.relativePath);
 
-        let finalOutputPath =
-          previewOnly || skipReport ? task.absoluteOutputPath : join(taskDir, task.relativePath);
+        // 计算目标路径：
+        // 如果是预览或跳过报告，直接使用预计算的路径 (通常在 outputDir 下)
+        // 否则，我们需要将预计算的文件名（含后缀和新扩展名）放到 taskDir 下
+        let finalOutputPath = task.absoluteOutputPath;
+        if (!previewOnly && !skipReport) {
+          const relativeToOutput = relative(this.config.outputDir, task.absoluteOutputPath);
+          finalOutputPath = join(taskDir, relativeToOutput);
+        }
 
         // 冲突检测 (基础重名检测)
         if (existsSync(finalOutputPath)) {
@@ -212,6 +218,9 @@ export class BatchProcessor {
             if (decision === "rename") {
               finalOutputPath = this.generateUniquePath(finalOutputPath);
             }
+          } else {
+            // 默认策略：自动重命名以避免覆盖
+            finalOutputPath = this.generateUniquePath(finalOutputPath);
           }
         }
 

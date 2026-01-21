@@ -37,11 +37,21 @@ export function generateHtmlReport(
 
   let html = REPORT_TEMPLATE;
 
+  /* Helper for HTML escaping */
+  const escapeHtml = (unsafe: string) => {
+    return unsafe
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  };
+
   const taskNavHtml = tasks
     .map(
       (task) => `
-    <a href="${task.relativeReportPath}" class="nav-item ${task.isCurrent ? "active" : ""}">
-        📁 ${task.name}
+    <a href="${escapeHtml(task.relativeReportPath)}" class="nav-item ${task.isCurrent ? "active" : ""}">
+        📁 ${escapeHtml(task.name)}
     </a>
     `,
     )
@@ -51,7 +61,7 @@ export function generateHtmlReport(
     .map(
       (item, idx) => `
     <a href="#item-${idx}" class="nav-item sub">
-        ${item.success ? "✅" : "❌"} ${item.file}
+        ${item.success ? "✅" : "❌"} ${escapeHtml(item.file)}
     </a>
     `,
     )
@@ -62,7 +72,7 @@ export function generateHtmlReport(
       (item, idx) => `
     <div class="item-card" id="item-${idx}">
         <div class="item-header">
-            <div class="item-title">${item.file}</div>
+            <div class="item-title">${escapeHtml(item.file)}</div>
             <div class="item-status ${item.success ? "status-success" : "status-error"}">
                 ${item.success ? "SUCCESS" : "FAILED"}
             </div>
@@ -87,7 +97,7 @@ export function generateHtmlReport(
         </div>
         `
             : `
-        <div class="error-msg">Error: ${item.error}</div>
+        <div class="error-msg">Error: ${escapeHtml(item.error || "Unknown error")}</div>
         `
         }
     </div>
