@@ -81,8 +81,6 @@ const FileSelectionScreen: React.FC<FileSelectionScreenProps> = ({
   onCancel,
 }) => {
   const [files, setFiles] = useState<{ label: string; value: string }[]>([]);
-  const [manualPath, setManualPath] = useState("");
-  const [mode, setMode] = useState<"list" | "manual">("list");
 
   useEffect(() => {
     try {
@@ -98,37 +96,7 @@ const FileSelectionScreen: React.FC<FileSelectionScreenProps> = ({
 
   return (
     <Box flexDirection="column" paddingX={2}>
-      <Text bold color="cyan">
-        🖼️ 单文件处理
-      </Text>
       <Box marginBottom={1}>
-        <Text dimColor>请选择文件或输入路径 (Esc 返回)</Text>
-      </Box>
-
-      <Box
-        borderStyle="round"
-        borderColor="gray"
-        paddingX={1}
-        marginBottom={1}
-        flexDirection="column"
-      >
-        <Box>
-          <Text color={mode === "list" ? "green" : "white"}>
-            {mode === "list" ? "●" : "○"} 选择列表{" "}
-          </Text>
-          <Text color={mode === "manual" ? "green" : "white"}>
-            {mode === "manual" ? "●" : "○"} 手动输入
-          </Text>
-        </Box>
-
-        {mode === "list" ? (
-          <Box marginTop={1} flexDirection="column">
-            {files.length > 0 ? (
-              <SelectInput items={files} onSelect={(item) => onSelect(item.value)} limit={8} />
-            ) : (
-              <Text dimColor>input 目录下没有找到图片</Text>
-            )}
-            <Box marginTop={1}>
               <Text dimColor>提示: 按 </Text>
               <Text color="yellow">Tab</Text>
               <Text dimColor> 切换到手动输入</Text>
@@ -194,7 +162,12 @@ function FileSelectorWithInput(props: {
             <TextInput
               value={manualPath}
               onChange={setManualPath}
-              onSubmit={() => props.onSelect(manualPath)}
+              onSubmit={() => {
+                const trimmed = manualPath.trim();
+                if (trimmed) {
+                  props.onSelect(trimmed);
+                }
+              }}
             />
           </Box>
           <Box marginTop={1} flexDirection="column">
@@ -1035,28 +1008,27 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
                 onChange={(val) => {
                   if (field.key === "concurrency" || field.key === "taskTimeout") {
                     const numVal = Number.parseFloat(val);
-                    if (Number.isNaN(numVal)) {
-                      setEditConfig((prev) => setNestedValue(prev, field.key, 0));
-                      return;
-                    }
-                    const minVal = field.key === "concurrency" ? 1 : 1000;
-                    setEditConfig((prev) =>
-                      setNestedValue(prev, field.key, Math.max(numVal, minVal)),
-                    );
-                    return;
-                  }
-
-                  if (field.key === "previewCount" || field.key === "budgetLimit") {
+                    // 允许输入过程中的临时值，仅处理 NaN
+                    const safeVal = Number.isNaN(numVal) ? 0 : numVal;
+                    setEditConfig((prev) => setNestedValue(prev, field.key, safeVal));
+                  } else if (field.key === "previewCount" || field.key === "budgetLimit") {
                     const numVal = Number.parseFloat(val);
                     setEditConfig((prev) =>
                       setNestedValue(prev, field.key, Number.isNaN(numVal) ? 0 : numVal),
                     );
-                    return;
-                  }
 
                   setEditConfig((prev) => setNestedValue(prev, field.key, val));
                 }}
-                onSubmit={() => setIsEditing(false)}
+                onSubmit={() => {
+                  // 提交时进行最小值钳制
+                  if (field.key === "concurrency" || field.key === "taskTimeout") {
+                    const currentVal = Number(getNestedValue(editConfig, field.key));
+                    const minVal = field.key === "concurrency" ? 1 : 1000;
+                    const finalVal = Math.max(currentVal, minVal);
+                    setEditConfig((prev) => setNestedValue(prev, field.key, finalVal));
+                  }
+                  setIsEditing(false);
+                }}
               />
             );
           } else {

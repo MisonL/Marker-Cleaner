@@ -11,8 +11,10 @@ export interface ReportItem {
   duration?: number;
   success: boolean;
   error?: string;
-  inputBuffer?: Buffer;
-  outputBuffer?: Buffer;
+  absoluteInputPath?: string;
+  absoluteOutputPath?: string;
+  // inputBuffer?: Buffer; // Removed to save memory
+  // outputBuffer?: Buffer; // Removed to save memory
 }
 
 export interface TaskNavigation {
@@ -77,17 +79,14 @@ export function generateHtmlReport(
                 ${item.success ? "SUCCESS" : "FAILED"}
             </div>
         </div>
-        ${
-          item.success
-            ? `
         <div class="image-comparison">
             <div class="img-container">
                 <div class="img-label">Before</div>
-                <img src="data:image/png;base64,${item.inputBuffer?.toString("base64")}" />
+                <img src="data:image/png;base64,${item.absoluteInputPath ? require("node:fs").readFileSync(item.absoluteInputPath).toString("base64") : ""}" />
             </div>
             <div class="img-container">
                 <div class="img-label">After</div>
-                <img src="data:image/png;base64,${item.outputBuffer?.toString("base64")}" />
+                <img src="data:image/png;base64,${item.absoluteOutputPath ? require("node:fs").readFileSync(item.absoluteOutputPath).toString("base64") : ""}" />
             </div>
         </div>
         <div class="item-footer">
