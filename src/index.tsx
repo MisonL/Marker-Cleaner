@@ -312,6 +312,30 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
   const [authState, setAuthState] = useState(loadToken());
   const [loginMsg, setLoginMsg] = useState("");
 
+  const getModelOptions = (provider: string) => {
+    if (provider === "antigravity") {
+      return [
+        "gemini-3-pro-image", // Native
+        "gemini-3-flash", // Detection
+        "gemini-3-pro-high", // Detection
+        "gemini-3-pro-low", // Detection
+        "claude-sonnet-4-5", // Detection
+      ];
+    }
+    if (provider === "google") {
+      return [
+        "gemini-2.5-flash-image", // Native
+        "gemini-2.0-flash-exp", // Native
+        "gemini-1.5-pro", // Detection
+        "gemini-1.5-flash", // Detection
+      ];
+    }
+    return [];
+  };
+
+  const currentProvider = editConfig.provider;
+  const modelOptions = getModelOptions(currentProvider);
+
   const fields: ConfigField[] = [
     {
       key: "provider",
@@ -321,7 +345,12 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
     },
     { key: "apiKey", label: "API Key", type: "password" },
     { key: "baseUrl", label: "代理地址", type: "text" },
-    { key: "modelName", label: "模型名称", type: "text" },
+    {
+      key: "modelName",
+      label: "模型名称",
+      type: modelOptions.length > 0 ? "select" : "text",
+      options: modelOptions.length > 0 ? modelOptions : undefined,
+    },
     { key: "inputDir", label: "输入目录", type: "text" },
     { key: "outputDir", label: "输出目录", type: "text" },
     { key: "recursive", label: "递归遍历", type: "boolean" },
@@ -355,12 +384,19 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
         const currentVal = editConfig[configKey];
         if (typeof currentVal === "string") {
           const options = field.options;
-          const nextIndex = (options.indexOf(currentVal) + 1) % options.length;
-          const nextVal = options[nextIndex] as Config["provider"];
+          // Smart cycling: handle case where current value isn't in options
+          let nextIndex = options.indexOf(currentVal);
+          if (nextIndex === -1) nextIndex = -1; // Start from beginning if unknown
+          nextIndex = (nextIndex + 1) % options.length;
+          
+          const nextVal = options[nextIndex];
+          
           if (nextVal !== undefined) {
-            // 切换 Provider 时，保存当前 Provider 的配置到档案袋，并加载新 Provider 的档案袋配置
+             // 切换 Provider 时，保存当前 Provider 的配置到档案袋
             if (configKey === "provider") {
+              const nextProvider = nextVal as Config["provider"];
               const prevProvider = currentVal as Config["provider"];
+              
               const updatedSettings = {
                 ...editConfig.providerSettings,
                 [prevProvider]: {
@@ -369,13 +405,21 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
                   modelName: editConfig.modelName,
                 },
               };
-              const nextSettings = updatedSettings[nextVal];
+              const nextSettings = updatedSettings[nextProvider];
+              
+              // 自动纠正模型: 如果切换到的 Provider 历史模型不在新推荐列表中，且有推荐列表，则使用推荐列表第一个
+              let newModelName = nextSettings.modelName || "";
+              const newProviderOptions = getModelOptions(nextProvider);
+              if (newProviderOptions.length > 0 && !newProviderOptions.includes(newModelName)) {
+                 newModelName = newProviderOptions[0] || "";
+              }
+
               setEditConfig((prev) => ({
                 ...prev,
-                provider: nextVal,
+                provider: nextProvider,
                 apiKey: nextSettings.apiKey || "",
                 baseUrl: nextSettings.baseUrl || "",
-                modelName: nextSettings.modelName || "",
+                modelName: newModelName,
                 providerSettings: updatedSettings,
               }));
             } else {
@@ -450,7 +494,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
         let displayValue = String(value);
 
         if (field.key === "provider") {
-          if (value === "google") displayValue = "Google Gemini API (需要tier1+层级)";
+          if (value === "google") displayValue = "Google Gemini API";
           else if (value === "openai") displayValue = "OpenAI (需 GPT-4o)";
           else if (value === "antigravity") displayValue = "Antigravity (集成登录)";
         }
@@ -458,6 +502,20 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
         if (field.key === "apiKey" && value && !isEditing) {
           displayValue = "********";
         }
+        
+        // 渲染辅助信息组件
+        let hintComponent: React.ReactNode = null;
+        if (field.key === "modelName" && isFocused) {
+            const isNative = String(value).toLowerCase().includes("image");
+            hintComponent = (
+                <Box marginLeft={2}>
+                    <Text color={isNative ? "green" : "cyan"} dimColor>
+                         {isNative ? "🎨 Native Mode (原生生成)" : "⚡ Detection Mode (视觉检测)"}
+                    </Text>
+                </Box>
+            );
+        }
+
         if (field.key === "baseUrl" && !value) {
           if (editConfig.provider === "openai") {
             displayValue = "(必填，除非使用官方 API)";
@@ -468,15 +526,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
           }
         }
         if (field.key === "modelName" && !value) {
-          if (editConfig.provider === "google") {
-            displayValue = "(例: gemini-2.0-flash-exp)";
-          } else if (editConfig.provider === "openai") {
-            displayValue = "(例: gpt-4o)";
-          } else if (editConfig.provider === "antigravity") {
-            displayValue = "(例: nano-banana-pro)";
-          } else {
-            displayValue = "(未设置)";
-          }
+             displayValue = "(未设置)";
         }
 
         let valComponent: React.ReactNode;
@@ -528,12 +578,15 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel })
         }
 
         return (
-          <Box key={field.key}>
-            <Text color={isFocused ? "cyan" : undefined}>
-              {isFocused ? "▶ " : "  "}
-              {field.label}:{" "}
-            </Text>
-            {valComponent}
+          <Box key={field.key} flexDirection="column">
+            <Box>
+                <Text color={isFocused ? "cyan" : undefined}>
+                {isFocused ? "▶ " : "  "}
+                {field.label}:{" "}
+                </Text>
+                {valComponent}
+            </Box>
+            {hintComponent} 
           </Box>
         );
       })}

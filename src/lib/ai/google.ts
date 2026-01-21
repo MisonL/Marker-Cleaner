@@ -34,7 +34,17 @@ export class GoogleProvider implements AIProvider {
       const base64 = imageBuffer.toString("base64");
       const mimeType = detectMimeType(imageBuffer);
 
-      const model = this.client.getGenerativeModel({ model: this.modelName }, this.requestOptions);
+      // 如果模型名称包含 "image"，开启多模态生成模式
+      const generationConfig: any = {};
+      if (this.modelName.toLowerCase().includes("image")) {
+        generationConfig.responseModalities = ["TEXT", "IMAGE"];
+      }
+
+      const model = this.client.getGenerativeModel(
+        { model: this.modelName, generationConfig },
+        this.requestOptions,
+      );
+
       const response = await model.generateContent([
         {
           inlineData: {

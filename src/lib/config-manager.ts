@@ -40,7 +40,7 @@ export const ConfigSchema = z.object({
   provider: z.enum(["google", "openai", "antigravity"]).default("antigravity"),
   apiKey: z.string().default(""),
   baseUrl: z.string().optional(),
-  modelName: z.string().default("nano-banana-pro"),
+  modelName: z.string().default("gemini-3-pro-image"),
 
   // 各 Provider 独立的档案袋配置
   providerSettings: z
@@ -52,7 +52,13 @@ export const ConfigSchema = z.object({
     .default({
       google: { apiKey: "", modelName: "gemini-2.5-flash-image" },
       openai: { apiKey: "", modelName: "gpt-4o" },
-      antigravity: { apiKey: "", modelName: "nano-banana-pro" },
+      antigravity: {
+        apiKey: "",
+        modelName: "gemini-3-pro-image",
+        // Native Mode: gemini-3-pro-image (High Quality Inpainting)
+        // Detection Mode: gemini-3-flash (Fast & Cheap), gemini-3-pro-high (Smartest)
+        // Others: claude-sonnet-4-5, gpt-oss-120b-medium
+      },
     }),
 
   // Prompt 配置

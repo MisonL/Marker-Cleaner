@@ -94,15 +94,17 @@ export function loginWithAntigravity(): Promise<TokenStore> {
         const code = url.searchParams.get("code");
         const error = url.searchParams.get("error");
 
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+
         if (error) {
-          res.end(`Login failed: ${error}`);
+          res.end(getErrorHtml(error));
           server.close();
           reject(new Error(error));
           return;
         }
 
         if (code) {
-          res.end("Login successful! You can close this window now.");
+          res.end(getSuccessHtml());
           server.close();
 
           // 使用 .then/.catch 代替 async/await，避免在回调中使用 async
@@ -265,4 +267,207 @@ export async function getAccessToken(): Promise<string> {
 
   saveToken(newToken);
   return newToken.access_token;
+}
+
+// ============ HTML Templates ============
+
+function getSuccessHtml(): string {
+  return `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录成功 - Marker Cleaner</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg: #f8fafc;
+            --card-bg: rgba(255, 255, 255, 0.8);
+            --text: #1e293b;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #e0e7ff 0%, #f1f5f9 100%);
+            color: var(--text);
+            overflow: hidden;
+        }
+
+        .container {
+            text-align: center;
+            padding: 3rem;
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 24px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            max-width: 400px;
+            width: 90%;
+            transform: translateY(0);
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .icon-box {
+            width: 80px;
+            height: 80px;
+            background: #dcfce7;
+            color: #16a34a;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto 1.5rem;
+            font-size: 2.5rem;
+            animation: scaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes scaleIn {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+        }
+
+        h1 {
+            margin: 0 0 0.5rem;
+            font-size: 1.75rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #4f46e5, #9333ea);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p {
+            color: #64748b;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: #eff6ff;
+            color: #2563eb;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+        }
+
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .close-hint {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            margin-top: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon-box">✓</div>
+        <div class="badge">已授权</div>
+        <h1>登录成功</h1>
+        <p>您的账号已成功关联至 Marker Cleaner。您可以立即返回终端应用并关闭此窗口。</p>
+        <button class="btn" onclick="window.close()">关闭此页</button>
+        <div class="close-hint">如果此窗口未自动关闭，请手动关闭</div>
+    </div>
+</body>
+</html>
+  `;
+}
+
+function getErrorHtml(error: string): string {
+  return `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录失败 - Marker Cleaner</title>
+    <style>
+        :root {
+            --danger: #ef4444;
+            --bg: #fef2f2;
+            --text: #1e293b;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .container {
+            text-align: center;
+            padding: 3rem;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .icon-box {
+            width: 70px;
+            height: 70px;
+            background: #fee2e2;
+            color: var(--danger);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto 1.5rem;
+            font-size: 2rem;
+        }
+
+        h1 { margin: 0 0 1rem; color: var(--danger); }
+        .error-msg { background: #f8fafc; padding: 1rem; border-radius: 8px; font-family: monospace; font-size: 0.9rem; color: #475569; margin-bottom: 2rem; overflow-wrap: break-word; }
+        .btn { background: #64748b; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 10px; cursor: pointer; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon-box">!</div>
+        <h1>登录遇到问题</h1>
+        <p>授权过程中发生了错误：</p>
+        <div class="error-msg">${error}</div>
+        <button class="btn" onclick="window.close()">关闭重试</button>
+    </div>
+</body>
+</html>
+  `;
 }

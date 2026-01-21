@@ -41,10 +41,9 @@ export class AntigravityProvider implements AIProvider {
 
   constructor(config: Config) {
     this.modelName = config.modelName;
-    // Guess support based on name, similar to Google provider
-    this.supportsImageEdit =
-      this.modelName.toLowerCase().includes("image") ||
-      this.modelName.toLowerCase().includes("pro");
+    // 仅当模型名称明确包含 "image" 时，才视为支持原生图像编辑
+    // 其他模型 (如 gemini-3-flash, gemini-3-pro-high) 仅用于视觉检测 (Nano 模式)
+    this.supportsImageEdit = this.modelName.toLowerCase().includes("image");
   }
 
   async processImage(imageBuffer: Buffer, prompt: string): Promise<ProcessResult> {
@@ -62,7 +61,7 @@ export class AntigravityProvider implements AIProvider {
 
       const body = {
         project: tokenData.project_id,
-        model: this.modelName,
+        model: this.modelName || "gemini-3-pro-image",
         request: {
           contents: [
             {
@@ -79,6 +78,7 @@ export class AntigravityProvider implements AIProvider {
             },
           ],
         },
+        request_type: "agent", // image_gen also works, agent is more general
         userAgent: "antigravity",
         requestId: randomUUID(),
       };
