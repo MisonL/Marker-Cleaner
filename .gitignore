@@ -25,3 +25,6 @@ output/
 
 # reference 目录（内部参考，不发布）
 reference/
+
+# Secrets
+antigravity_token.json
