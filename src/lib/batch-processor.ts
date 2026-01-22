@@ -259,6 +259,7 @@ export class BatchProcessor {
           // 收集报告数据 (需保证顺序或最终排序，此处暂且推入)
           this.reportData.push({
             file: task.relativePath,
+            inputTokens: result.inputTokens,
             outputTokens: result.outputTokens,
             cost: taskCost,
             duration: duration,

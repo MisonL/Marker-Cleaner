@@ -96,38 +96,32 @@ const FileSelectionScreen: React.FC<FileSelectionScreenProps> = ({
 
   return (
     <Box flexDirection="column" paddingX={2}>
+      <Text bold color="cyan">
+        🖼️ 单文件处理
+      </Text>
       <Box marginBottom={1}>
-              <Text dimColor>提示: 按 </Text>
-              <Text color="yellow">Tab</Text>
-              <Text dimColor> 切换到手动输入</Text>
-            </Box>
-          </Box>
-        ) : (
-          <Box marginTop={1} flexDirection="column">
-            <Box>
-              <Text>路径: </Text>
-              <TextInput
-                value={manualPath}
-                onChange={setManualPath}
-                onSubmit={(val) => {
-                  if (val.trim()) onSelect(val.trim());
-                }}
-              />
-            </Box>
-            <Box marginTop={1} flexDirection="column">
-              <Text dimColor>支持相对路径 (如 ./test.jpg) 或绝对路径</Text>
-              <Text dimColor>按 Enter 确认，按 Tab 切换回列表</Text>
-            </Box>
-          </Box>
-        )}
+        <Text dimColor>请选择文件或输入路径 (Esc 返回)</Text>
       </Box>
 
-      {/* 快捷键监听 - 移至组件顶层调用 */}
+      <FileSelectorWithInput
+        files={files.map((f) => f.label)}
+        value=""
+        onSelect={(file) => {
+          // 如果是列表选择的，file 是文件名。如果是手动输入的，可能是路径。
+          const found = files.find((f) => f.label === file);
+          if (found) {
+            onSelect(found.value);
+          } else {
+            // 手动输入处理
+            const fullPath = file.startsWith("/") || file.match(/^[a-zA-Z]:/) ? file : join(inputDir, file);
+            onSelect(fullPath.trim());
+          }
+        }}
+        onCancel={onCancel}
+      />
     </Box>
   );
-
-  // Note: useInput should be called at component top level, not in IIFE
-}
+};
 
 // 为 FileSelector 添加独立的 Hook wrapper
 function FileSelectorWithInput(props: {
@@ -1016,8 +1010,9 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, l
                     setEditConfig((prev) =>
                       setNestedValue(prev, field.key, Number.isNaN(numVal) ? 0 : numVal),
                     );
-
-                  setEditConfig((prev) => setNestedValue(prev, field.key, val));
+                  } else {
+                    setEditConfig((prev) => setNestedValue(prev, field.key, val));
+                  }
                 }}
                 onSubmit={() => {
                   // 提交时进行最小值钳制

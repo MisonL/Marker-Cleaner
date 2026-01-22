@@ -70,23 +70,32 @@ export function generateHtmlReport(
     .join("");
 
   const itemListHtml = data
-    .map(
-      (item, idx) => `
+    .map((item, idx) => {
+      // Helper to safely read file as base64
+      const safeReadBase64 = (filePath?: string): string => {
+        if (!filePath) return "";
+        try {
+          return require("node:fs").readFileSync(filePath).toString("base64");
+        } catch {
+          return ""; // 文件不存在时返回空，显示空白图片
+        }
+      };
+
+      if (item.success) {
+        return `
     <div class="item-card" id="item-${idx}">
         <div class="item-header">
             <div class="item-title">${escapeHtml(item.file)}</div>
-            <div class="item-status ${item.success ? "status-success" : "status-error"}">
-                ${item.success ? "SUCCESS" : "FAILED"}
-            </div>
+            <div class="item-status status-success">SUCCESS</div>
         </div>
         <div class="image-comparison">
             <div class="img-container">
                 <div class="img-label">Before</div>
-                <img src="data:image/png;base64,${item.absoluteInputPath ? require("node:fs").readFileSync(item.absoluteInputPath).toString("base64") : ""}" />
+                <img src="data:image/png;base64,${safeReadBase64(item.absoluteInputPath)}" />
             </div>
             <div class="img-container">
                 <div class="img-label">After</div>
-                <img src="data:image/png;base64,${item.absoluteOutputPath ? require("node:fs").readFileSync(item.absoluteOutputPath).toString("base64") : ""}" />
+                <img src="data:image/png;base64,${safeReadBase64(item.absoluteOutputPath)}" />
             </div>
         </div>
         <div class="item-footer">
@@ -94,14 +103,20 @@ export function generateHtmlReport(
             <span>Cost: $${(item.cost ?? 0).toFixed(5)}</span>
             <span>Time: ${item.duration ?? 0}ms</span>
         </div>
-        `
-            : `
-        <div class="error-msg">Error: ${escapeHtml(item.error || "Unknown error")}</div>
-        `
-        }
     </div>
-    `,
-    )
+    `;
+      } else {
+        return `
+    <div class="item-card" id="item-${idx}">
+        <div class="item-header">
+            <div class="item-title">${escapeHtml(item.file)}</div>
+            <div class="item-status status-error">FAILED</div>
+        </div>
+        <div class="error-msg">Error: ${escapeHtml(item.error || "Unknown error")}</div>
+    </div>
+    `;
+      }
+    })
     .join("");
 
   html = html
