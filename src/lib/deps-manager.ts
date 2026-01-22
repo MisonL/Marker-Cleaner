@@ -90,7 +90,7 @@ export class DependencyManager {
   /**
    * Install sharp using available package manager into ./deps
    */
-  installSharp(): Promise<void> {
+  installSharp(onLog?: (msg: string) => void): Promise<void> {
     return new Promise((resolve, reject) => {
       const pm = this.detectPackageManager();
       if (!pm) {
@@ -124,11 +124,26 @@ export class DependencyManager {
       const args = pm === "npm" ? ["install", "sharp"] : ["add", "sharp"];
 
       console.log(`Installing sharp using ${pm} in ${depsDir}...`);
+      onLog?.(`🔥 Starting installation with ${pm}...`);
 
       const child = spawn(cmd, args, {
-        stdio: "inherit",
+        stdio: "pipe", // Capture output
         shell: true,
-        cwd: depsDir, // Critical: Run install inside ./deps
+        cwd: depsDir, 
+      });
+
+      child.stdout?.on("data", (data) => {
+        const lines = data.toString().split("\n");
+        for (const line of lines) {
+          if (line.trim()) onLog?.(line.trim().slice(0, 60)); // Limit length
+        }
+      });
+
+      child.stderr?.on("data", (data) => {
+        const lines = data.toString().split("\n");
+        for (const line of lines) {
+           if (line.trim()) onLog?.(line.trim().slice(0, 60));
+        }
       });
 
       child.on("close", (code) => {

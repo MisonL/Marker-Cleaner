@@ -185,6 +185,22 @@ function FileSelectorWithInput(props: {
   );
 }
 
+
+// Simple text-based progress bar component
+const FakeProgressBar = ({ percent }: { percent: number }) => {
+  const width = 30;
+  const completed = Math.floor((width * percent) / 100);
+  const remaining = width - completed;
+  return (
+    <Text color="green">
+      {"["}
+      {"█".repeat(completed)}
+      {"░".repeat(remaining)}
+      {"]"} {percent}%
+    </Text>
+  );
+};
+
 interface MenuItem {
   label: string;
   value: string;
@@ -218,6 +234,8 @@ const App: React.FC = () => {
   const [sharpMissing, setSharpMissing] = useState(false);
   const [installingSharp, setInstallingSharp] = useState(false);
   const [pkgManager, setPkgManager] = useState<PackageManager>(null);
+  const [installLog, setInstallLog] = useState("");
+  const [installProgress, setInstallProgress] = useState(0);
 
   useEffect(() => {
     const deps = DependencyManager.getInstance();
@@ -232,12 +250,28 @@ const App: React.FC = () => {
   const handleInstallSharp = async () => {
     if (installingSharp) return;
     setInstallingSharp(true);
+    setInstallProgress(0);
+    setInstallLog("Initializing...");
     setStatus("📦 正在安装依赖 sharp...");
+
+    // fake progress simulation
+    const timer = setInterval(() => {
+       setInstallProgress(p => {
+         if (p >= 90) return p;
+         return p + Math.floor(Math.random() * 5);
+       });
+    }, 500);
+
     try {
-      await DependencyManager.getInstance().installSharp();
+      await DependencyManager.getInstance().installSharp((msg) => {
+         setInstallLog(msg);
+      });
+      clearInterval(timer);
+      setInstallProgress(100);
       setSharpMissing(false);
-      setStatus("✅ 依赖安装成功！");
+      setStatus("✅ 依赖安装成功！请尽情使用！");
     } catch (err) {
+      clearInterval(timer);
       setError(`安装失败: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setInstallingSharp(false);
@@ -506,10 +540,14 @@ const App: React.FC = () => {
           <Text color="yellow">本地模式 (Detection Mode) 需要 sharp 模块。</Text>
           
           {installingSharp ? (
-            <Box marginTop={1}>
+            <Box marginTop={1} flexDirection="column">
               <Text color="cyan">
-                <Spinner type="dots" /> 正在自动安装 sharp (可能需要等待几分钟)...
+                 <Spinner type="dots" /> 正在自动安装 sharp...
               </Text>
+              <Box marginTop={0}>
+                 <FakeProgressBar percent={installProgress} />
+              </Box>
+              <Text dimColor>{installLog}</Text>
             </Box>
           ) : pkgManager ? (
              <Box marginTop={1} flexDirection="column">
