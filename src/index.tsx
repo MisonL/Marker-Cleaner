@@ -573,7 +573,7 @@ const App: React.FC = () => {
               {lastStats.tokens && (
                 <Text color="cyan">
                   ⚡ 上个任务: {lastStats.tokens.input + lastStats.tokens.output} tokens (
-                  {lastStats.tokens.input} In / {lastStats.tokens.output} Out)
+                  {lastStats.tokens.input} 输入 / {lastStats.tokens.output} 输出)
                 </Text>
               )}
               {lastStats.duration !== undefined && (

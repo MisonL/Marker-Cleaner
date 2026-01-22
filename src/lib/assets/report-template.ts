@@ -98,7 +98,7 @@ export const REPORT_TEMPLATE = `<!DOCTYPE html>
     <main class="main-content">
         <div class="container">
             <header>
-                <h1>清洗任务报告 (Artifact)</h1>
+                <h1>清洗任务报告 (处理结果)</h1>
                 <div class="stats-grid">
                     <div class="stat-card">
                         <div class="stat-label">处理结果</div>

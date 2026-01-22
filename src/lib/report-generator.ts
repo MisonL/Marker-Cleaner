@@ -95,13 +95,13 @@ export async function generateHtmlReport(
 <svg width="400" height="200" xmlns="http://www.w3.org/2000/svg">
   <rect width="100%" height="100%" fill="#eee"/>
   <text x="50%" y="40%" font-family="Arial" font-size="16" fill="#666" text-anchor="middle" dominant-baseline="middle" font-weight="bold">
-    Thumbnail Unavailable
+    暂无缩略图
   </text>
   <text x="50%" y="60%" font-family="Arial" font-size="12" fill="#999" text-anchor="middle" dominant-baseline="middle">
-    Run: bun add sharp
+    请运行: bun add sharp
   </text>
   <text x="50%" y="75%" font-family="Arial" font-size="10" fill="#bbb" text-anchor="middle" dominant-baseline="middle">
-    (or npm install sharp / yarn add sharp)
+    (或使用 npm install sharp / yarn add sharp)
   </text>
 </svg>`;
             return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
@@ -116,20 +116,20 @@ export async function generateHtmlReport(
     <div class="item-card" id="item-${idx}">
         <div class="item-header">
             <div class="item-title">${escapeHtml(item.file)}</div>
-            <div class="item-status status-success">SUCCESS</div>
+            <div class="item-status status-success">成功</div>
         </div>
         <div class="image-comparison">
             <div class="img-container">
-                <div class="img-label">Before (Thumbnail)</div>
+                <div class="img-label">处理前 (缩略图)</div>
                 <img src="${beforeUri}" />
             </div>
             <div class="img-container">
-                <div class="img-label">After (Thumbnail)</div>
+                <div class="img-label">处理后 (缩略图)</div>
                 <img src="${afterUri}" />
             </div>
         </div>
         <div class="item-footer">
-            <span>Tokens: ${(item.inputTokens ?? 0) + (item.outputTokens ?? 0)} (${item.inputTokens ?? 0} In / ${item.outputTokens ?? 0} Out)</span>
+            <span>Tokens: ${(item.inputTokens ?? 0) + (item.outputTokens ?? 0)} (${item.inputTokens ?? 0} 输入 / ${item.outputTokens ?? 0} 输出)</span>
             <span>Cost: $${(item.cost ?? 0).toFixed(5)}</span>
             <span>Time: ${item.duration ?? 0}ms</span>
         </div>
@@ -140,9 +140,9 @@ export async function generateHtmlReport(
     <div class="item-card" id="item-${idx}">
         <div class="item-header">
             <div class="item-title">${escapeHtml(item.file)}</div>
-            <div class="item-status status-error">FAILED</div>
+            <div class="item-status status-error">失败</div>
         </div>
-        <div class="error-msg">Error: ${escapeHtml(item.error || "Unknown error")}</div>
+        <div class="error-msg">错误: ${escapeHtml(item.error || "未知错误")}</div>
     </div>
     `;
         }
