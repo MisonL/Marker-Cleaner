@@ -360,29 +360,32 @@ const App: React.FC = () => {
     <Box flexDirection="column" padding={1}>
       {/* 标题区域 - 紧凑专业 Logo */}
       <Box flexDirection="column" marginBottom={1}>
-        <Text color="cyan" bold>╔═══════════════════════════════════════════════════════════════════════════════╗</Text>
+        <Text color="cyan" bold>╔═══════════════════════════════════════════════════════════════╗</Text>
         <Text>
           <Text color="cyan" bold>║</Text>
-          <Text color="cyan" bold>  ╔╦╗╔═╗╦═╗╦╔═╔═╗╦═╗  </Text>
-          <Text color="magenta" bold>╔═╗╦  ╔═╗╔═╗╔╗╔╔═╗╦═╗  </Text>
-          <Text dimColor>🧹 Professional AI Restorer</Text>
-          <Text color="cyan" bold>  ║</Text>
+          <Text color="cyan" bold>    ╔╦╗╔═╗╦═╗╦╔═╔═╗╦═╗  </Text>
+          <Text color="magenta" bold>╔═╗╦  ╔═╗╔═╗╔╗╔╔═╗╦═╗    </Text>
+          <Text color="cyan" bold>║</Text>
         </Text>
         <Text>
           <Text color="cyan" bold>║</Text>
-          <Text color="green" bold>  ║║║╠═╣╠╦╝╠╩╗║╣ ╠╦╝  </Text>
-          <Text color="yellow" bold>║  ║  ║╣ ╠═╣║║║║╣ ╠╦╝  </Text>
-          <Text color="yellow" bold>          v1.0.0      </Text>
-          <Text color="cyan" bold>  ║</Text>
+          <Text color="green" bold>    ║║║╠═╣╠╦╝╠╩╗║╣ ╠╦╝  </Text>
+          <Text color="yellow" bold>║  ║  ║╣ ╠═╣║║║║╣ ╠╦╝    </Text>
+          <Text color="cyan" bold>║</Text>
         </Text>
         <Text>
           <Text color="cyan" bold>║</Text>
-          <Text color="blue" bold>  ╩ ╩╩ ╩╩╚═╩ ╩╚═╝╩╚═  </Text>
-          <Text color="red" bold>╚═╝╩═╝╚═╝╩ ╩╝╚╝╚═╝╩╚═  </Text>
-          <Text dimColor>     AI 智能图像修复工具</Text>
-          <Text color="cyan" bold>  ║</Text>
+          <Text color="blue" bold>    ╩ ╩╩ ╩╩╚═╩ ╩╚═╝╩╚═  </Text>
+          <Text color="red" bold>╚═╝╩═╝╚═╝╩ ╩╝╚╝╚═╝╩╚═    </Text>
+          <Text color="cyan" bold>║</Text>
         </Text>
-        <Text color="cyan" bold>╚═══════════════════════════════════════════════════════════════════════════════╝</Text>
+        <Text>
+          <Text color="cyan" bold>║</Text>
+          <Text dimColor>       🧹 Professional AI Image Restorer </Text>
+          <Text color="yellow" bold>v1.0.0       </Text>
+          <Text color="cyan" bold>║</Text>
+        </Text>
+        <Text color="cyan" bold>╚═══════════════════════════════════════════════════════════════╝</Text>
       </Box>
 
       {/* 当前配置仪表盘 */}
