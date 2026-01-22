@@ -639,6 +639,13 @@ const getModelOptions = (provider: string) => {
       "(Manual Input)", // 允许手动输入
     ];
   }
+  if (provider === "openai") {
+    return [
+      "gpt-4o", // Detection
+      "gpt-4-turbo", // Detection
+      "(Manual Input)",
+    ];
+  }
   return ["(Manual Input)"];
 };
 
@@ -971,7 +978,9 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
           hintComponent = (
             <Box marginLeft={2}>
               <Text color={isNative ? "green" : "cyan"} dimColor>
-                {isNative ? "🎨 Native Mode (原生生成)" : "⚡ Detection Mode (视觉检测)"}
+                {isNative
+                  ? "🎨 Native Mode (AI 重绘生成 / 适合复杂背景)"
+                  : "⚡ Detection Mode (AI 识别 + 本地修复 / 适合纯色背景 / 省钱)"}
               </Text>
             </Box>
           );
