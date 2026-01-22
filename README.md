@@ -177,9 +177,10 @@ bun run build:win
 
 ## ❓ 故障排除
 
-**Q: 启动时提示 `Sharp` 依赖缺失？**
+**Q: Windows 启动或使用功能时报错 `Sharp module is required`？**
 
-> 本项目依赖 `sharp` 进行本地图像处理。请尝试运行 `bun add sharp` 重新安装，或确保在构建时正确处理了 native 模块。
+> **Standard 使用 (Native 模式)**：无需任何额外依赖，开箱即用。
+> **Advanced 使用 (Detection 模式 / 格式转换)**：由于 Windows 单文件打包限制，如果需要使用本地像素处理或格式转换功能，您需要在 `.exe` 同级目录下手动安装 `sharp` 环境。建议优先使用 Native 模式，既无需安装依赖，效果也更好。
 
 **Q: Antigravity 登录后提示 "Project ID Missing"？**
 
