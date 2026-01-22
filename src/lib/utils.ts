@@ -1,5 +1,36 @@
 import { createHash } from "node:crypto";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import open from "open";
+
+/**
+ * 归一化路径，处理 file:// 协议以及相对/绝对路径
+ */
+export function normalizePath(pathStr: string, baseDir?: string): string {
+  let finalPath = pathStr.trim();
+
+  // 处理 file:// 协议
+  if (finalPath.startsWith("file://")) {
+    try {
+      finalPath = fileURLToPath(finalPath);
+    } catch {
+      // 忽略无效 URL
+    }
+  }
+
+  // 判定是否为绝对路径
+  const isAbsolute =
+    finalPath.startsWith("/") || // Unix 绝对路径
+    finalPath.match(/^[a-zA-Z]:/) || // Windows 盘符路径
+    finalPath.startsWith("\\\\"); // Windows UNC 路径
+
+  if (isAbsolute) {
+    return finalPath;
+  }
+
+  // 如果提供了基准目录，则拼接
+  return baseDir ? join(baseDir, finalPath) : finalPath;
+}
 
 /**
  * 跨平台打开文件或文件夹

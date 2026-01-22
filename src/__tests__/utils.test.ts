@@ -1,5 +1,38 @@
 import { describe, expect, test } from "bun:test";
-import { detectMimeType, getPlatformInfo, parseBoxesFromText } from "../lib/utils";
+import {
+  detectMimeType,
+  getPlatformInfo,
+  normalizePath,
+  parseBoxesFromText,
+} from "../lib/utils";
+import { join } from "node:path";
+
+describe("normalizePath", () => {
+  test("should handle file:// URLs", () => {
+    // Unix-style
+    if (process.platform !== "win32") {
+      expect(normalizePath("file:///tmp/test.png")).toBe("/tmp/test.png");
+    }
+  });
+
+  test("should handle absolute paths", () => {
+    if (process.platform !== "win32") {
+      expect(normalizePath("/abs/path.png")).toBe("/abs/path.png");
+    } else {
+      expect(normalizePath("C:\\abs\\path.png")).toBe("C:\\abs\\path.png");
+      expect(normalizePath("\\\\server\\share")).toBe("\\\\server\\share");
+    }
+  });
+
+  test("should handle relative paths with baseDir", () => {
+    const base = "/base";
+    expect(normalizePath("rel/path.png", base)).toBe(join(base, "rel/path.png"));
+  });
+
+  test("should trim input string", () => {
+    expect(normalizePath("  /abs/path.png  ")).toBe("/abs/path.png");
+  });
+});
 
 describe("detectMimeType", () => {
   test("should detect PNG format", () => {

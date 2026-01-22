@@ -1,6 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"; // 新增导入
 import { basename, dirname, extname, join } from "node:path"; // 新增导入
-import { fileURLToPath } from "node:url";
 import { Box, Text, render, useApp, useInput } from "ink";
 import SelectInput from "ink-select-input";
 import Spinner from "ink-spinner";
@@ -17,7 +16,7 @@ import { BatchProcessor } from "./lib/batch-processor";
 import { type Config, loadConfig, resetConfig, saveConfig } from "./lib/config-manager";
 import { createLogger } from "./lib/logger";
 import type { BatchTask } from "./lib/types";
-import { formatDuration, openPath, renderImageToTerminal } from "./lib/utils";
+import { formatDuration, normalizePath, openPath, renderImageToTerminal } from "./lib/utils";
 
 // ============ Hooks ============
 
@@ -120,22 +119,7 @@ const FileSelectionScreen: React.FC<FileSelectionScreenProps> = ({
             onSelect(found.value);
           } else {
             // 手动输入处理
-            let finalPath = file.trim();
-
-            if (finalPath.startsWith("file://")) {
-              try {
-                finalPath = fileURLToPath(finalPath);
-              } catch {
-                // Ignore invalid URLs, keep as is
-              }
-            }
-
-            const isAbsolute =
-              finalPath.startsWith("/") || // Unix absolute
-              finalPath.match(/^[a-zA-Z]:/) || // Windows drive
-              finalPath.startsWith("\\\\"); // Windows UNC
-
-            const fullPath = isAbsolute ? finalPath : join(inputDir, finalPath);
+            const fullPath = normalizePath(file, inputDir);
             onSelect(fullPath);
           }
         }}
@@ -310,20 +294,7 @@ const App: React.FC = () => {
 
       let pendingTasks: BatchTask[] = [];
       if (singleFilePath) {
-        let normalizedPath = singleFilePath.trim();
-        if (normalizedPath.startsWith("file://")) {
-          try {
-            normalizedPath = fileURLToPath(normalizedPath);
-          } catch {
-            // Ignore invalid URLs
-          }
-        }
-
-        const isAbsolute =
-          normalizedPath.startsWith("/") ||
-          (process.platform === "win32" &&
-            (normalizedPath.includes(":") || normalizedPath.startsWith("\\\\")));
-        const absPath = isAbsolute ? normalizedPath : join(process.cwd(), normalizedPath);
+        const absPath = normalizePath(singleFilePath, process.cwd());
 
         if (!existsSync(absPath)) throw new Error(`文件不存在: ${absPath}`);
 
