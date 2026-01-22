@@ -1118,10 +1118,10 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
           <Text dimColor>保存配置 | </Text>
           <Text color="magenta"> A </Text>
           <Text dimColor>{showAdvanced ? "折叠" : "展开"}高级 | </Text>
-          <Text dimColor>日志目录 | </Text>
           <Text color="magenta"> D </Text>
           <Text dimColor>恢复默认</Text>
           {editConfig.provider === "antigravity" && (
+
             <>
               <Text dimColor> | </Text>
               <Text color="magenta"> L </Text>
