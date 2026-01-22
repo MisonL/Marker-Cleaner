@@ -4,7 +4,7 @@ import { Box, Text, render, useApp, useInput } from "ink";
 import SelectInput from "ink-select-input";
 import Spinner from "ink-spinner";
 import TextInput from "ink-text-input";
-import { DependencyManager } from "./lib/deps-manager"; // 新增导入
+import { DependencyManager, type PackageManager } from "./lib/deps-manager"; // Update import
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { createProvider } from "./lib/ai";
@@ -210,7 +210,7 @@ const App: React.FC = () => {
   // Sharp Dependency State
   const [sharpMissing, setSharpMissing] = useState(false);
   const [installingSharp, setInstallingSharp] = useState(false);
-  const [pkgManager, setPkgManager] = useState<"npm" | "bun" | null>(null);
+  const [pkgManager, setPkgManager] = useState<PackageManager>(null);
 
   useEffect(() => {
     const deps = DependencyManager.getInstance();
@@ -395,48 +395,49 @@ const App: React.FC = () => {
   return (
     <Box flexDirection="column" padding={1}>
       {/* 标题区域 - 真正旗舰级 Block Logo */}
+      {/* 标题区域 - 真正旗舰级 Block Logo (White Theme Adaptation) */}
       <Box flexDirection="column" marginBottom={1}>
         {/* MARKER */}
-        <Text>
-          <Text color="white" bold>███╗   ███╗ █████╗ ██████╗ ██╗  ██╗███████╗██████╗</Text>
+        <Text backgroundColor="white">
+          <Text color="black" bold>███╗   ███╗ █████╗ ██████╗ ██╗  ██╗███████╗██████╗</Text>
         </Text>
-        <Text>
-          <Text color="white" bold>████╗ ████║██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗</Text>
+        <Text backgroundColor="white">
+          <Text color="black" bold>████╗ ████║██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗</Text>
         </Text>
-        <Text>
-          <Text color="cyan" bold>██╔████╔██║███████║██████╔╝█████╔╝ █████╗  ██████╔╝</Text>
+        <Text backgroundColor="white">
+          <Text color="blue" bold>██╔████╔██║███████║██████╔╝█████╔╝ █████╗  ██████╔╝</Text>
         </Text>
-        <Text>
-          <Text color="cyan" bold>██║╚██╔╝██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝  ██╔══██╗</Text>
+        <Text backgroundColor="white">
+          <Text color="blue" bold>██║╚██╔╝██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝  ██╔══██╗</Text>
         </Text>
-        <Text>
+        <Text backgroundColor="white">
           <Text color="blue" bold>██║ ╚═╝ ██║██║  ██║██║  ██║██║  ██╗███████╗██║  ██║</Text>
         </Text>
-        <Text>
+        <Text backgroundColor="white">
           <Text color="blue" bold>╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝</Text>
         </Text>
         
-        <Text> </Text>
+        <Text backgroundColor="white"> </Text>
 
         {/* CLEANER */}
-        <Text>
-          <Text color="cyan" bold> ██████╗██╗     ███████╗ █████╗ ███╗   ██╗███████╗██████╗ </Text>
+        <Text backgroundColor="white">
+          <Text color="blue" bold> ██████╗██╗     ███████╗ █████╗ ███╗   ██╗███████╗██████╗ </Text>
         </Text>
-        <Text>
-          <Text color="cyan" bold>██╔════╝██║     ██╔════╝██╔══██╗████╗  ██║██╔════╝██╔══██╗</Text>
+        <Text backgroundColor="white">
+          <Text color="blue" bold>██╔════╝██║     ██╔════╝██╔══██╗████╗  ██║██╔════╝██╔══██╗</Text>
         </Text>
-        <Text>
+        <Text backgroundColor="white">
           <Text color="green" bold>██║     ██║     █████╗  ███████║██╔██╗ ██║█████╗  ██████╔╝</Text>
         </Text>
-        <Text>
+        <Text backgroundColor="white">
           <Text color="green" bold>██║     ██║     ██╔══╝  ██╔══██║██║╚██╗██║██╔══╝  ██╔══██╗</Text>
         </Text>
-        <Text>
-          <Text color="yellow" bold>╚██████╗███████╗███████╗██║  ██║██║ ╚████║███████╗██║  ██║</Text>
+        <Text backgroundColor="white">
+          <Text color="magenta" bold>╚██████╗███████╗███████╗██║  ██║██║ ╚████║███████╗██║  ██║</Text>
         </Text>
-        <Text>
-          <Text color="yellow" bold> ╚═════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝</Text>
-          <Text color="yellow" bold> v1.0.0</Text>
+        <Text backgroundColor="white">
+          <Text color="magenta" bold> ╚═════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝</Text>
+          <Text color="black" bold> v1.0.0</Text>
         </Text>
 
         <Text> </Text>

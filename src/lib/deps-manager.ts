@@ -61,6 +61,15 @@ export class DependencyManager {
 
       console.log(`Installing sharp using ${pm}...`);
 
+      // Ensure package.json exists, otherwise bundlers might fail or warn
+      if (!existsSync("package.json")) {
+        try {
+           execSync(`${pm} init -y`, { stdio: "ignore" });
+        } catch (e) {
+           // Ignore init errors, try to proceed
+        }
+      }
+
       const child = spawn(cmd, args, {
         stdio: "inherit",
         shell: true,
