@@ -1,9 +1,8 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module"; // Added
+import { createRequire } from "node:module"; 
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-
-export type PackageManager = "npm" | "bun" | "pnpm" | "yarn" | null;
+import { execSync, spawn } from "node:child_process";
 
 export type PackageManager = "npm" | "bun" | "pnpm" | "yarn" | null;
 
@@ -137,21 +136,21 @@ export class DependencyManager {
         cwd: depsDir, 
       });
 
-      child.stdout?.on("data", (data) => {
+      child.stdout?.on("data", (data: Buffer) => {
         const lines = data.toString().split("\n");
         for (const line of lines) {
           if (line.trim()) onLog?.(line.trim().slice(0, 60)); // Limit length
         }
       });
 
-      child.stderr?.on("data", (data) => {
+      child.stderr?.on("data", (data: Buffer) => {
         const lines = data.toString().split("\n");
         for (const line of lines) {
            if (line.trim()) onLog?.(line.trim().slice(0, 60));
         }
       });
 
-      child.on("close", (code) => {
+      child.on("close", (code: number) => {
         if (code === 0) {
           resolve();
         } else {
@@ -159,7 +158,7 @@ export class DependencyManager {
         }
       });
 
-      child.on("error", (err) => {
+      child.on("error", (err: Error) => {
         reject(err);
       });
     });
