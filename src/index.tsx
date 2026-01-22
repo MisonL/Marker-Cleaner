@@ -726,7 +726,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
       options: ["openai", "antigravity", "google"],
     },
     { key: "apiKey", label: "API Key", type: "password" },
-    { key: "baseUrl", label: "代理地址", type: "text" },
+    { key: "baseUrl", label: "API Base URL", type: "text" },
     {
       key: "modelName",
       label: manualModelMode ? "模型名称 (输入 'reset' 重置)" : "模型名称",
@@ -745,7 +745,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
     { key: "preserveStructure", label: "保持目录结构", type: "boolean" },
     { key: "concurrency", label: "任务并发数 (1-10)", type: "text" },
     { key: "taskTimeout", label: "单任务超时 (ms)", type: "text" },
-    { key: "budgetLimit", label: "成本熔断 (USD)", type: "text" },
+    { key: "budgetLimit", label: "成本熔断 (USD, 0=无限制)", type: "text" },
     { key: "debugLog", label: "Debug 日志", type: "boolean" },
 
     // 高级选项
@@ -1062,10 +1062,19 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
           }
         }
 
+        // 根据字段类型决定 Label 颜色
+        const getFieldLabelColor = () => {
+          if (field.advanced) return "gray";
+          if (field.key === "provider" || field.key === "modelName") return "magenta";
+          if (field.key.includes("Dir")) return "blue";
+          if (field.type === "boolean") return "yellow";
+          return "cyan";
+        };
+
         return (
           <Box key={field.key} flexDirection="column">
             <Box>
-              <Text color={isFocused ? "cyan" : undefined}>
+              <Text bold={isFocused} color={isFocused ? "green" : getFieldLabelColor()}>
                 {isFocused ? "▶ " : "  "}
                 {field.label}:{" "}
               </Text>
