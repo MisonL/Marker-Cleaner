@@ -358,44 +358,52 @@ const App: React.FC = () => {
 
   return (
     <Box flexDirection="column" padding={1}>
-      {/* 标题区域 - 旗舰级 Logo */}
+      {/* 标题区域 - 真正旗舰级 Block Logo */}
       <Box flexDirection="column" marginBottom={1}>
+        {/* MARKER */}
         <Text>
-          <Text color="cyan" bold>    __  ___ ___   ___  __ __  ___  ___       </Text>
-          <Text color="cyan" bold>  MARKER     </Text>
+          <Text color="cyan" bold>███╗   ███╗ █████╗ ██████╗ ██╗  ██╗███████╗██████╗</Text>
         </Text>
         <Text>
-          <Text color="cyan" bold>   /  |/  // _ | / _ \/ //_// _/ / _ \      </Text>
+          <Text color="cyan" bold>████╗ ████║██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗</Text>
         </Text>
         <Text>
-          <Text color="blue" bold>  / /|_/ // __ |/ , _/ ,{"<"}  / _/ / , _/      </Text>
+          <Text color="blue" bold>██╔████╔██║███████║██████╔╝█████╔╝ █████╗  ██████╔╝</Text>
         </Text>
         <Text>
-          <Text color="blue" bold> /_/  /_//_/ |_/_/|_/_/|_|/___//_/|_|       </Text>
+          <Text color="blue" bold>██║╚██╔╝██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝  ██╔══██╗</Text>
         </Text>
         <Text>
-          <Text> </Text>
+          <Text color="blue" bold>██║ ╚═╝ ██║██║  ██║██║  ██║██║  ██╗███████╗██║  ██║</Text>
         </Text>
         <Text>
-          <Text color="magenta" bold>   ______________    _________    _   ____________  </Text>
-          <Text color="magenta" bold>  CLEANER  </Text>
+          <Text color="cyan" bold>╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝</Text>
+        </Text>
+        
+        <Text> </Text>
+
+        {/* CLEANER */}
+        <Text>
+          <Text color="magenta" bold> ██████╗██╗     ███████╗ █████╗ ███╗   ██╗███████╗██████╗ </Text>
         </Text>
         <Text>
-          <Text color="magenta" bold>  / ____/ /   / ____/   |  / | / / ____/ __ \   </Text>
+          <Text color="magenta" bold>██╔════╝██║     ██╔════╝██╔══██╗████╗  ██║██╔════╝██╔══██╗</Text>
         </Text>
         <Text>
-          <Text color="red" bold> / /   / /   / __/ / /| | /  |/ / __/ / /_/ /   </Text>
+          <Text color="red" bold>██║     ██║     █████╗  ███████║██╔██╗ ██║█████╗  ██████╔╝</Text>
         </Text>
         <Text>
-          <Text color="red" bold> / /___/ /___/ /___/ ___ |/ /|  / /___/ _, _/   </Text>
+          <Text color="red" bold>██║     ██║     ██╔══╝  ██╔══██║██║╚██╗██║██╔══╝  ██╔══██╗</Text>
         </Text>
         <Text>
-          <Text color="yellow" bold> \____/_____/_____/_/  |_/_/ |_/_____/_/ |_|    </Text>
-          <Text color="yellow" bold>v1.0.0     </Text>
+          <Text color="red" bold>╚██████╗███████╗███████╗██║  ██║██║ ╚████║███████╗██║  ██║</Text>
         </Text>
         <Text>
-          <Text> </Text>
+          <Text color="yellow" bold> ╚═════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝</Text>
+          <Text color="yellow" bold> v1.0.0</Text>
         </Text>
+
+        <Text> </Text>
         <Text>
           <Text dimColor>         🧹 Professional AI Image Restorer & Cleaner Tool          </Text>
         </Text>
