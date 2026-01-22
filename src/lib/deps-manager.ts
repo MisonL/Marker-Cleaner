@@ -1,5 +1,8 @@
 import { execSync, spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+
+export type PackageManager = "npm" | "bun" | "pnpm" | "yarn" | null;
 
 export type PackageManager = "npm" | "bun" | "pnpm" | "yarn" | null;
 
@@ -20,12 +23,41 @@ export class DependencyManager {
    */
   async checkSharp(): Promise<boolean> {
     try {
+      // First try standard import (dev environment/bundled)
       // @ts-ignore
       await import("sharp");
       return true;
     } catch (e) {
-      return false;
+      // Then try local deps folder
+      try {
+        const localPath = this.getLocalSharpPath();
+        await import(localPath);
+        return true;
+      } catch (e2) {
+        return false;
+      }
     }
+  }
+
+  /**
+   * Resolve sharp module for usage
+   */
+  async loadSharp(): Promise<any> {
+    try {
+      // @ts-ignore
+      return await import("sharp");
+    } catch {
+      const localPath = this.getLocalSharpPath();
+      return await import(localPath);
+    }
+  }
+
+  private getDepsDir(): string {
+    return join(process.cwd(), "deps");
+  }
+
+  private getLocalSharpPath(): string {
+    return join(this.getDepsDir(), "node_modules", "sharp");
   }
 
   /**
@@ -56,7 +88,7 @@ export class DependencyManager {
   }
 
   /**
-   * Install sharp using available package manager
+   * Install sharp using available package manager into ./deps
    */
   installSharp(): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -66,23 +98,37 @@ export class DependencyManager {
         return;
       }
 
+      const depsDir = this.getDepsDir();
+      
+      // 1. Create deps dir if not exists
+      if (!existsSync(depsDir)) {
+        mkdirSync(depsDir, { recursive: true });
+      }
+
+      // 2. Create minimal package.json if not exists (Avoids 'init' clutter)
+      const pkgJsonPath = join(depsDir, "package.json");
+      if (!existsSync(pkgJsonPath)) {
+        writeFileSync(pkgJsonPath, JSON.stringify({
+          name: "marker-cleaner-deps",
+          version: "1.0.0",
+          private: true,
+          description: "Auto-generated dependencies for Marker Cleaner Runtime",
+          license: "UNLICENSED"
+        }, null, 2));
+      }
+
       const cmd = pm;
+      // Force npm on Windows to use cmd shim if needed, but exec/spawn usually handles it. 
+      // Safest to just run the command name if it's in PATH.
+      
       const args = pm === "npm" ? ["install", "sharp"] : ["add", "sharp"];
 
-      console.log(`Installing sharp using ${pm}...`);
-
-      // Ensure package.json exists, otherwise bundlers might fail or warn
-      if (!existsSync("package.json")) {
-        try {
-           execSync(`${pm} init -y`, { stdio: "ignore" });
-        } catch (e) {
-           // Ignore init errors, try to proceed
-        }
-      }
+      console.log(`Installing sharp using ${pm} in ${depsDir}...`);
 
       const child = spawn(cmd, args, {
         stdio: "inherit",
         shell: true,
+        cwd: depsDir, // Critical: Run install inside ./deps
       });
 
       child.on("close", (code) => {

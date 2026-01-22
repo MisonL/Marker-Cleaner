@@ -1,5 +1,6 @@
 // import sharp from "sharp"; // Removed top-level import to prevent startup crash if missing
 import type { BoundingBox } from "./types";
+import { DependencyManager } from "./deps-manager"; // Added import
 
 /**
  * 使用 Sharp 在指定区域内清除彩色标记
@@ -13,10 +14,11 @@ export async function cleanMarkersLocal(
     return imageBuffer;
   }
 
-  // Dynamic import sharp
+  // Dynamic import sharp via DependencyManager
   let sharp;
   try {
-    sharp = (await import("sharp")).default;
+    const sharpModule = await DependencyManager.getInstance().loadSharp();
+    sharp = sharpModule.default || sharpModule;
   } catch (error) {
     throw new Error(
       "Sharp module not found. Please ensure 'sharp' is installed alongside the executable or use Native mode which doesn't require local processing.",
@@ -174,10 +176,11 @@ export async function convertFormat(
 ): Promise<Buffer> {
   const ext = originalExt ? originalExt.toLowerCase() : "";
 
-  // Dynamic import sharp
+  // Dynamic import sharp via DependencyManager
   let sharp;
   try {
-    sharp = (await import("sharp")).default;
+    const sharpModule = await DependencyManager.getInstance().loadSharp();
+    sharp = sharpModule.default || sharpModule;
   } catch (error) {
     // Graceful fallback for "original" mode if sharp is missing
     // We assume the buffer is valid and return it as is.
