@@ -7,7 +7,8 @@ import open from "open";
  * 归一化路径，处理 file:// 协议以及相对/绝对路径
  */
 export function normalizePath(pathStr: string, baseDir?: string): string {
-  let finalPath = pathStr.trim();
+  let finalPath = (pathStr || "").trim();
+  if (!finalPath) return ""; // 拦截空输入，避免返回 baseDir
 
   // 处理 file:// 协议
   if (finalPath.startsWith("file://")) {
@@ -21,7 +22,7 @@ export function normalizePath(pathStr: string, baseDir?: string): string {
   // 判定是否为绝对路径
   const isAbsolute =
     finalPath.startsWith("/") || // Unix 绝对路径
-    finalPath.match(/^[a-zA-Z]:/) || // Windows 盘符路径
+    finalPath.match(/^[a-zA-Z]:[\\/]/) || // Windows 绝对路径 (C:\ 或 C:/)
     finalPath.startsWith("\\\\"); // Windows UNC 路径
 
   if (isAbsolute) {

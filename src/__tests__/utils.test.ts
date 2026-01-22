@@ -20,8 +20,15 @@ describe("normalizePath", () => {
       expect(normalizePath("/abs/path.png")).toBe("/abs/path.png");
     } else {
       expect(normalizePath("C:\\abs\\path.png")).toBe("C:\\abs\\path.png");
+      expect(normalizePath("C:/abs/path.png")).toBe("C:/abs/path.png");
       expect(normalizePath("\\\\server\\share")).toBe("\\\\server\\share");
     }
+  });
+
+  test("should handle Windows drive-relative paths as relative", () => {
+    const base = "/base";
+    // C:foo 应该被视为相对路径并拼接 baseDir (尽管在真正 Windows 上 C:foo 有盘符含义，但在跨平台工具中我们遵循非绝对即相对原则)
+    expect(normalizePath("C:foo", base)).toBe(join(base, "C:foo"));
   });
 
   test("should handle relative paths with baseDir", () => {
@@ -29,8 +36,10 @@ describe("normalizePath", () => {
     expect(normalizePath("rel/path.png", base)).toBe(join(base, "rel/path.png"));
   });
 
-  test("should trim input string", () => {
-    expect(normalizePath("  /abs/path.png  ")).toBe("/abs/path.png");
+  test("should handle empty or null input", () => {
+    expect(normalizePath("")).toBe("");
+    expect(normalizePath("  ")).toBe("");
+    expect(normalizePath("", "/base")).toBe("");
   });
 });
 
