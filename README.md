@@ -2,14 +2,14 @@
 <br/>
 
 <a href="https://github.com/MisonL/Marker-Cleaner">
-  <img src="assets/logo.svg" width="600" alt="Marker Cleaner Logo">
+  <img src="assets/logo.png" width="600" alt="Marker Cleaner Logo">
 </a>
 
 ### 🧹 Marker Cleaner | 全链路多模态图像标记净化工具
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg?style=flat-square) &nbsp;&nbsp;
-![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square) &nbsp;&nbsp;
-![Stack](https://img.shields.io/badge/tech-Bun%20%7C%20React%20Ink%20%7C%20TypeScript-black.svg?style=flat-square) &nbsp;&nbsp;
+![Version](https://img.shields.io/badge/version-1.0.0-blue.svg?style=flat-square)&emsp;
+![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)&emsp;
+![Stack](https://img.shields.io/badge/tech-Bun%20%7C%20React%20Ink%20%7C%20TypeScript-black.svg?style=flat-square)&emsp;
 ![Lang](https://img.shields.io/badge/lang-简体中文-red.svg?style=flat-square)
 <br/>
 <br/>
