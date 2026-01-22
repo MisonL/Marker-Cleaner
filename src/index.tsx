@@ -27,10 +27,14 @@ function useShortcuts(params: {
   onSelectMenu: (index: number) => void;
   onOpenReport?: () => void;
   canOpenReport: boolean;
+  isEditing?: boolean;
 }) {
-  const { screen, onExit, onNavigate, onSelectMenu, onOpenReport, canOpenReport } = params;
+  const { screen, onExit, onNavigate, onSelectMenu, onOpenReport, canOpenReport, isEditing } = params;
 
   useInput(async (input, key) => {
+    // 如果正在编辑（如 TextInput 中），跳过全局快捷键
+    if (isEditing) return;
+
     const lowerInput = input.toLowerCase();
 
     // 通用退出逻辑
@@ -73,12 +77,14 @@ interface FileSelectionScreenProps {
   inputDir: string;
   onSelect: (path: string) => void;
   onCancel: () => void;
+  onEditingChange?: (isEditing: boolean) => void;
 }
 
 const FileSelectionScreen: React.FC<FileSelectionScreenProps> = ({
   inputDir,
   onSelect,
   onCancel,
+  onEditingChange,
 }) => {
   const [files, setFiles] = useState<{ label: string; value: string }[]>([]);
 
@@ -118,6 +124,7 @@ const FileSelectionScreen: React.FC<FileSelectionScreenProps> = ({
           }
         }}
         onCancel={onCancel}
+        onEditingChange={onEditingChange}
       />
     </Box>
   );
@@ -129,9 +136,14 @@ function FileSelectorWithInput(props: {
   value: string;
   onSelect: (file: string) => void;
   onCancel: () => void;
+  onEditingChange?: (isEditing: boolean) => void;
 }) {
   const [mode, setMode] = useState<"list" | "manual">("list");
   const [manualPath, setManualPath] = useState(props.value);
+
+  useEffect(() => {
+    props.onEditingChange?.(mode === "manual");
+  }, [mode]);
 
   useInput((input, key) => {
     if (key.tab) {
@@ -194,6 +206,7 @@ const App: React.FC = () => {
     duration?: number;
   }>({});
   const [error, setError] = useState("");
+  const [isGlobalEditing, setIsGlobalEditing] = useState(false);
 
   const [reportPath, setReportPath] = useState<string | undefined>();
   const [sessionStats, setSessionStats] = useState<{
@@ -351,6 +364,7 @@ const App: React.FC = () => {
       if (reportPath) openPath(reportPath);
     },
     canOpenReport: !!reportPath,
+    isEditing: isGlobalEditing,
   });
 
   return (
@@ -483,8 +497,13 @@ const App: React.FC = () => {
             setConfig(newConfig);
             setStatus("✅ 配置已保存");
             setScreen("menu");
+            setIsGlobalEditing(false); // 重置状态
           }}
-          onCancel={() => setScreen("menu")}
+          onCancel={() => {
+            setScreen("menu");
+            setIsGlobalEditing(false); // 重置状态
+          }}
+          onEditingChange={setIsGlobalEditing}
           logger={createLogger(config.debugLog)}
         />
       )}
@@ -495,8 +514,13 @@ const App: React.FC = () => {
           onSelect={(path) => {
             setScreen("process");
             runProcess(false, path);
+            setIsGlobalEditing(false); // 重置状态
           }}
-          onCancel={() => setScreen("menu")}
+          onCancel={() => {
+            setScreen("menu");
+            setIsGlobalEditing(false); // 重置状态
+          }}
+          onEditingChange={setIsGlobalEditing}
         />
       )}
 
@@ -594,6 +618,7 @@ interface ConfigScreenProps {
   config: Config;
   onSave: (config: Config) => void;
   onCancel: () => void;
+  onEditingChange?: (isEditing: boolean) => void;
   logger: ReturnType<typeof createLogger>;
 }
 
@@ -628,15 +653,25 @@ const getModelOptions = (provider: string) => {
   return ["(Manual Input)"];
 };
 
-const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel, logger }) => {
-  const [editConfig, setEditConfig] = useState(config);
-  const [focusIndex, setFocusIndex] = useState(0);
+const ConfigScreen: React.FC<ConfigScreenProps> = ({
+  config,
+  onSave,
+  onCancel,
+  onEditingChange,
+  logger,
+}) => {
+  const [editConfig, setEditConfig] = useState<Config>({ ...config });
   const [isEditing, setIsEditing] = useState(false);
+  const [focusIndex, setFocusIndex] = useState(0);
   const [authState, setAuthState] = useState(loadToken());
   const [loginMsg, setLoginMsg] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
   const [manualModelMode, setManualModelMode] = useState(false);
+
+  useEffect(() => {
+    onEditingChange?.(isEditing);
+  }, [isEditing]);
 
   useEffect(() => {
     if (editConfig.provider === "antigravity" && authState) {

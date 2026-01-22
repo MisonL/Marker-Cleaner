@@ -24,7 +24,7 @@ export interface TaskNavigation {
   isCurrent: boolean;
 }
 
-export function generateHtmlReport(
+export async function generateHtmlReport(
   outputPath: string,
   data: ReportItem[],
   tasks: TaskNavigation[] = [],
@@ -69,20 +69,33 @@ export function generateHtmlReport(
     )
     .join("");
 
-  const itemListHtml = data
-    .map((item, idx) => {
-      // Helper to safely read file as base64
-      const safeReadBase64 = (filePath?: string): string => {
-        if (!filePath) return "";
-        try {
-          return require("node:fs").readFileSync(filePath).toString("base64");
-        } catch {
-          return ""; // 文件不存在时返回空，显示空白图片
-        }
-      };
+  // 并行生成缩略图以并行提高效率
+  const itemListHtml = (
+    await Promise.all(
+      data.map(async (item, idx) => {
+        // Helper to safely read file and resize to thumbnail
+        const safeReadThumbnail = async (filePath?: string): Promise<string> => {
+          if (!filePath) return "";
+          try {
+            const buffer = require("node:fs").readFileSync(filePath);
+            // 这里我们使用 sharp 缩放图片到 1024px，不仅节省体积也防止大图导致 OOM
+            const resizedBuffer = await require("sharp")(buffer)
+              .resize({ width: 1024, withoutEnlargement: true })
+              .toFormat("jpeg", { quality: 75 }) // 质量设为 75% 兼顾清晰度与体积
+              .toBuffer();
 
-      if (item.success) {
-        return `
+            const mime = "image/jpeg"; // 我们强制转成了 jpeg
+            return `data:${mime};base64,${resizedBuffer.toString("base64")}`;
+          } catch {
+            return ""; // 文件不存在时返回空
+          }
+        };
+
+        if (item.success) {
+          const beforeUri = await safeReadThumbnail(item.absoluteInputPath);
+          const afterUri = await safeReadThumbnail(item.absoluteOutputPath);
+
+          return `
     <div class="item-card" id="item-${idx}">
         <div class="item-header">
             <div class="item-title">${escapeHtml(item.file)}</div>
@@ -90,12 +103,12 @@ export function generateHtmlReport(
         </div>
         <div class="image-comparison">
             <div class="img-container">
-                <div class="img-label">Before</div>
-                <img src="data:image/png;base64,${safeReadBase64(item.absoluteInputPath)}" />
+                <div class="img-label">Before (Thumbnail)</div>
+                <img src="${beforeUri}" />
             </div>
             <div class="img-container">
-                <div class="img-label">After</div>
-                <img src="data:image/png;base64,${safeReadBase64(item.absoluteOutputPath)}" />
+                <div class="img-label">After (Thumbnail)</div>
+                <img src="${afterUri}" />
             </div>
         </div>
         <div class="item-footer">
@@ -105,8 +118,8 @@ export function generateHtmlReport(
         </div>
     </div>
     `;
-      } else {
-        return `
+        } else {
+          return `
     <div class="item-card" id="item-${idx}">
         <div class="item-header">
             <div class="item-title">${escapeHtml(item.file)}</div>
@@ -115,9 +128,10 @@ export function generateHtmlReport(
         <div class="error-msg">Error: ${escapeHtml(item.error || "Unknown error")}</div>
     </div>
     `;
-      }
-    })
-    .join("");
+        }
+      }),
+    )
+  ).join("");
 
   html = html
     .replace("{{TASK_NAV}}", taskNavHtml)

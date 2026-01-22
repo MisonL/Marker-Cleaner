@@ -303,7 +303,7 @@ export class BatchProcessor {
 
     let reportPath: string | undefined;
     if (this.reportData.length > 0 && !previewOnly && !skipReport) {
-      reportPath = this.generateReport(taskDir);
+      reportPath = await this.generateReport(taskDir);
     }
 
     return {
@@ -315,7 +315,7 @@ export class BatchProcessor {
     };
   }
 
-  private generateReport(targetDir: string): string {
+  private async generateReport(targetDir: string): Promise<string> {
     const reportName = "task_report.html";
     const reportPath = join(targetDir, reportName);
     this.logger.info(`📊 正在生成处理报告: ${reportPath}`);
@@ -357,7 +357,7 @@ export class BatchProcessor {
       }
 
       const { generateHtmlReport } = require("./report-generator");
-      generateHtmlReport(reportPath, this.reportData, allTaskNav);
+      await generateHtmlReport(reportPath, this.reportData, allTaskNav);
       return reportPath;
     } catch (error) {
       this.logger.error(`生成报告失败: ${error}`);
