@@ -180,7 +180,14 @@ bun run build:win
 **Q: Windows 启动或使用功能时报错 `Sharp module is required`？**
 
 > **Standard 使用 (Native 模式)**：无需任何额外依赖，开箱即用。
-> **Advanced 使用 (Detection 模式 / 格式转换)**：由于 Windows 单文件打包限制，如果需要使用本地像素处理或格式转换功能，您需要在 `.exe` 同级目录下手动安装 `sharp` 环境。建议优先使用 Native 模式，既无需安装依赖，效果也更好。
+> **Advanced 使用 (Detection 模式 / 格式转换)**：由于 Windows 单文件打包限制，如果需要使用本地像素处理或格式转换功能，您需要在 `.exe` 同级目录下手动安装 `sharp` 环境。
+>
+> **安装步骤**：
+>
+> 1. 确保电脑已安装 [Node.js](https://nodejs.org/)。
+> 2. 在 `marker-cleaner-win.exe` 所在文件夹打开终端 (PowerShell/CMD)。
+> 3. 运行命令：`npm install sharp`。
+> 4. 生成 `node_modules` 文件夹后即可正常使用高级功能。
 
 **Q: Antigravity 登录后提示 "Project ID Missing"？**
 
