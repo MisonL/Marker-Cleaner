@@ -384,6 +384,11 @@ const App: React.FC = () => {
           <Text color="blue">Model</Text>
           <Text> {config.modelName}</Text>
         </Box>
+        <Box borderStyle="single" borderColor={config.modelName.toLowerCase().includes("image") ? "green" : "cyan"} paddingX={1}>
+          <Text color={config.modelName.toLowerCase().includes("image") ? "green" : "cyan"}>
+            {config.modelName.toLowerCase().includes("image") ? "🎨 Native" : "⚡ Detection"}
+          </Text>
+        </Box>
       </Box>
 
       {/* 错误展示 */}
