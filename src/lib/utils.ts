@@ -8,14 +8,24 @@ import open from "open";
  */
 export function normalizePath(pathStr: string, baseDir?: string): string {
   let finalPath = (pathStr || "").trim();
-  if (!finalPath) return ""; // 拦截空输入，避免返回 baseDir
+  if (!finalPath) return "";
 
   // 处理 file:// 协议
   if (finalPath.startsWith("file://")) {
     try {
       finalPath = fileURLToPath(finalPath);
     } catch {
-      // 忽略无效 URL
+      // 如果 fileURLToPath 失败（非标准 URL），手动剥离协议头
+      // 处理 file://C:/ 这种非标准但常见的格式
+      finalPath = finalPath.replace(/^file:\/\/+(?=[a-zA-Z]:)/, "");
+      finalPath = finalPath.replace(/^file:\/\/\/?/, "");
+      
+      // 对剥离后的路径再次进行绝对路径检查
+      const isAbsolute =
+        finalPath.startsWith("/") ||
+        finalPath.match(/^[a-zA-Z]:[\\/]/) ||
+        finalPath.startsWith("\\\\");
+      if (isAbsolute) return finalPath;
     }
   }
 

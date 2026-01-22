@@ -295,7 +295,7 @@ const App: React.FC = () => {
       let pendingTasks: BatchTask[] = [];
       if (singleFilePath) {
         const absPath = normalizePath(singleFilePath, process.cwd());
-
+        if (!absPath) throw new Error("未指定输入路径");
         if (!existsSync(absPath)) throw new Error(`文件不存在: ${absPath}`);
 
         pendingTasks = [

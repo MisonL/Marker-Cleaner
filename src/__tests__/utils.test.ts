@@ -8,11 +8,14 @@ import {
 import { join } from "node:path";
 
 describe("normalizePath", () => {
-  test("should handle file:// URLs", () => {
+  test("should handle file:// URLs and fallbacks", () => {
     // Unix-style
     if (process.platform !== "win32") {
       expect(normalizePath("file:///tmp/test.png")).toBe("/tmp/test.png");
     }
+    // 非标准 file:// 容错处理：确保至少能剥离协议头并识别盘符
+    const result = normalizePath("file://C:/tmp/test.png");
+    expect(result.endsWith("C:/tmp/test.png")).toBe(true);
   });
 
   test("should handle absolute paths", () => {
