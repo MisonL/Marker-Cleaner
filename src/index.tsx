@@ -361,47 +361,52 @@ const App: React.FC = () => {
       {/* 标题区域 - 专业 Logo */}
       <Box flexDirection="column" marginBottom={1}>
         <Text color="cyan" bold>
-          ╔══════════════════════════════════════════════════════════════════╗
+          ╔════════════════════════════════════════════════════════════════════════════════════════════════════════╗
         </Text>
         <Text>
           <Text color="cyan" bold>║</Text>
-          <Text color="white" bold>  ███╗   ███╗ █████╗ ██████╗ ██╗  ██╗███████╗██████╗              </Text>
-          <Text color="cyan" bold>║</Text>
-        </Text>
-        <Text>
-          <Text color="cyan" bold>║</Text>
-          <Text color="white" bold>  ████╗ ████║██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗             </Text>
+          <Text color="white" bold>  ███╗   ███╗ █████╗ ██████╗ ██╗  ██╗███████╗██████╗      </Text>
+          <Text color="magenta" bold> ██████╗██╗     ███████╗ █████╗ ███╗  ██╗███████╗██████╗  </Text>
           <Text color="cyan" bold>║</Text>
         </Text>
         <Text>
           <Text color="cyan" bold>║</Text>
-          <Text color="green" bold>  ██╔████╔██║███████║██████╔╝█████╔╝ █████╗  ██████╔╝             </Text>
+          <Text color="white" bold>  ████╗ ████║██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗     </Text>
+          <Text color="magenta" bold>██╔════╝██║     ██╔════╝██╔══██╗████╗ ██║██╔════╝██╔══██╗ </Text>
           <Text color="cyan" bold>║</Text>
         </Text>
         <Text>
           <Text color="cyan" bold>║</Text>
-          <Text color="green" bold>  ██║╚██╔╝██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝  ██╔══██╗             </Text>
+          <Text color="green" bold>  ██╔████╔██║███████║██████╔╝█████╔╝ █████╗  ██████╔╝     </Text>
+          <Text color="yellow" bold>██║     ██║     █████╗  ███████║██╔██╗██║█████╗  ██████╔╝  </Text>
           <Text color="cyan" bold>║</Text>
         </Text>
         <Text>
           <Text color="cyan" bold>║</Text>
-          <Text color="blue" bold>  ██║ ╚═╝ ██║██║  ██║██║  ██║██║  ██╗███████╗██║  ██║             </Text>
+          <Text color="green" bold>  ██║╚██╔╝██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝  ██╔══██╗     </Text>
+          <Text color="yellow" bold>██║     ██║     ██╔══╝  ██╔══██║██║╚████║██╔══╝  ██╔══██╗  </Text>
           <Text color="cyan" bold>║</Text>
         </Text>
         <Text>
           <Text color="cyan" bold>║</Text>
-          <Text color="blue" bold>  ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝             </Text>
+          <Text color="blue" bold>  ██║ ╚═╝ ██║██║  ██║██║  ██║██║  ██╗███████╗██║  ██║     </Text>
+          <Text color="red" bold>╚██████╗███████╗███████╗██║  ██║██║ ╚███║███████╗██║  ██║  </Text>
           <Text color="cyan" bold>║</Text>
         </Text>
         <Text>
           <Text color="cyan" bold>║</Text>
-          <Text color="magenta" bold>             🧹 CLEANER</Text>
-          <Text dimColor>  - Professional AI Image Restorer</Text>
-          <Text color="yellow" bold>  v1.0.0 </Text>
+          <Text color="blue" bold>  ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝     </Text>
+          <Text color="red" bold> ╚═════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚══╝╚══════╝╚═╝  ╚═╝  </Text>
+          <Text color="cyan" bold>║</Text>
+        </Text>
+        <Text>
+          <Text color="cyan" bold>║</Text>
+          <Text dimColor>                           🧹 Professional AI Image Restorer</Text>
+          <Text color="yellow" bold>                              v1.0.0 </Text>
           <Text color="cyan" bold>║</Text>
         </Text>
         <Text color="cyan" bold>
-          ╚══════════════════════════════════════════════════════════════════╝
+          ╚════════════════════════════════════════════════════════════════════════════════════════════════════════╝
         </Text>
       </Box>
 
