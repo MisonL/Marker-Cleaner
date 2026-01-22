@@ -11,8 +11,8 @@ Marker Cleaner v1.0.0 是一款专为高效率去水印与图像修复打造的�
 ### ✨ 核心特性 (Core Features)
 
 - **双模态智能引擎**:
-  - **Native AI 模式**: 深度集成 Gemini 3 / Gemini 2.5 原生图像重绘能力，能够完美理解画面结构，对复杂背景、纹理及光影进行无痕修复。
-  - **Detection 极速模式**: 结合 AI 视觉定位与本地 OpenCV 算法，针对纯色/简单背景实现毫秒级处理，大幅降低 Token 消耗。
+  - **Native AI 模式**: 调用支持图像生成的多模态模型（如 `gemini-3-pro-image`），直接让 AI 理解画面并**重绘被标记污染的区域**，完美还原复杂纹理与光影细节。
+  - **Detection 极速模式**: 使用视觉模型（如 `gemini-3-flash`、`gpt-4o`）**仅定位标记坐标**，修复工作由本地 Sharp 算法完成，Token 消耗极低，适合批量处理纯色背景图片。
 - **多渠道接入**: 开箱即用支持 Google Gemini、OpenAI 以及 Antigravity 企业级渠道，满足不同场景的成本与性能需求。
 
 ### 🚀 极致性能 (Performance)
