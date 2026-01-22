@@ -362,41 +362,41 @@ const App: React.FC = () => {
       <Box flexDirection="column" marginBottom={1}>
         {/* MARKER */}
         <Text>
-          <Text color="cyan" bold>███╗   ███╗ █████╗ ██████╗ ██╗  ██╗███████╗██████╗</Text>
+          <Text color="white" bold>███╗   ███╗ █████╗ ██████╗ ██╗  ██╗███████╗██████╗</Text>
         </Text>
         <Text>
-          <Text color="cyan" bold>████╗ ████║██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗</Text>
+          <Text color="white" bold>████╗ ████║██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗</Text>
         </Text>
         <Text>
-          <Text color="blue" bold>██╔████╔██║███████║██████╔╝█████╔╝ █████╗  ██████╔╝</Text>
+          <Text color="cyan" bold>██╔████╔██║███████║██████╔╝█████╔╝ █████╗  ██████╔╝</Text>
         </Text>
         <Text>
-          <Text color="blue" bold>██║╚██╔╝██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝  ██╔══██╗</Text>
+          <Text color="cyan" bold>██║╚██╔╝██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝  ██╔══██╗</Text>
         </Text>
         <Text>
           <Text color="blue" bold>██║ ╚═╝ ██║██║  ██║██║  ██║██║  ██╗███████╗██║  ██║</Text>
         </Text>
         <Text>
-          <Text color="cyan" bold>╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝</Text>
+          <Text color="blue" bold>╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝</Text>
         </Text>
         
         <Text> </Text>
 
         {/* CLEANER */}
         <Text>
-          <Text color="magenta" bold> ██████╗██╗     ███████╗ █████╗ ███╗   ██╗███████╗██████╗ </Text>
+          <Text color="cyan" bold> ██████╗██╗     ███████╗ █████╗ ███╗   ██╗███████╗██████╗ </Text>
         </Text>
         <Text>
-          <Text color="magenta" bold>██╔════╝██║     ██╔════╝██╔══██╗████╗  ██║██╔════╝██╔══██╗</Text>
+          <Text color="cyan" bold>██╔════╝██║     ██╔════╝██╔══██╗████╗  ██║██╔════╝██╔══██╗</Text>
         </Text>
         <Text>
-          <Text color="red" bold>██║     ██║     █████╗  ███████║██╔██╗ ██║█████╗  ██████╔╝</Text>
+          <Text color="green" bold>██║     ██║     █████╗  ███████║██╔██╗ ██║█████╗  ██████╔╝</Text>
         </Text>
         <Text>
-          <Text color="red" bold>██║     ██║     ██╔══╝  ██╔══██║██║╚██╗██║██╔══╝  ██╔══██╗</Text>
+          <Text color="green" bold>██║     ██║     ██╔══╝  ██╔══██║██║╚██╗██║██╔══╝  ██╔══██╗</Text>
         </Text>
         <Text>
-          <Text color="red" bold>╚██████╗███████╗███████╗██║  ██║██║ ╚████║███████╗██║  ██║</Text>
+          <Text color="yellow" bold>╚██████╗███████╗███████╗██║  ██║██║ ╚████║███████╗██║  ██║</Text>
         </Text>
         <Text>
           <Text color="yellow" bold> ╚═════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝</Text>
