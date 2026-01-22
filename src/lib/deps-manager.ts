@@ -32,6 +32,16 @@ export class DependencyManager {
    * Detect available package manager
    */
   detectPackageManager(): PackageManager {
+    // On Windows, prefer npm over bun for native builds if available, as bun on windows is experimental
+    const isWin = process.platform === "win32";
+
+    if (isWin) {
+      try {
+        execSync("npm --version", { stdio: "ignore" });
+        return "npm";
+      } catch {}
+    }
+
     try {
       execSync("bun --version", { stdio: "ignore" });
       return "bun";

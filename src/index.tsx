@@ -207,6 +207,13 @@ const App: React.FC = () => {
   const [error, setError] = useState("");
   const [isGlobalEditing, setIsGlobalEditing] = useState(false);
 
+  // Global Theme State
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const isLight = theme === "light";
+  const bg = isLight ? "white" : undefined;
+  const fg = isLight ? "black" : "white";
+  const dim = isLight ? "gray" : "dim";
+
   // Sharp Dependency State
   const [sharpMissing, setSharpMissing] = useState(false);
   const [installingSharp, setInstallingSharp] = useState(false);
@@ -385,64 +392,67 @@ const App: React.FC = () => {
     isEditing: isGlobalEditing,
   });
 
-  // Global key listener for 'i' install
+  // Global key listener for 'i' install and 't' theme toggle
   useInput((input, key) => {
-     if (screen === "menu" && sharpMissing && !installingSharp && pkgManager && input.toLowerCase() === "i") {
+     const char = input.toLowerCase();
+     if (screen === "menu" && sharpMissing && !installingSharp && pkgManager && char === "i") {
         handleInstallSharp();
+     }
+     if (char === "t" && !isGlobalEditing) {
+        setTheme(prev => prev === "light" ? "dark" : "light");
      }
   });
 
   return (
-    <Box flexDirection="column" padding={1}>
+    <Box flexDirection="column" padding={1} width="100%" height="100%" backgroundColor={bg}>
       {/* 标题区域 - 真正旗舰级 Block Logo */}
-      {/* 标题区域 - 真正旗舰级 Block Logo (White Theme Adaptation) */}
       <Box flexDirection="column" marginBottom={1}>
         {/* MARKER */}
-        <Text backgroundColor="white">
-          <Text color="black" bold>███╗   ███╗ █████╗ ██████╗ ██╗  ██╗███████╗██████╗</Text>
+        <Text>
+          <Text color={isLight ? "black" : "white"} bold>███╗   ███╗ █████╗ ██████╗ ██╗  ██╗███████╗██████╗</Text>
         </Text>
-        <Text backgroundColor="white">
-          <Text color="black" bold>████╗ ████║██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗</Text>
+        <Text>
+          <Text color={isLight ? "black" : "white"} bold>████╗ ████║██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗</Text>
         </Text>
-        <Text backgroundColor="white">
-          <Text color="blue" bold>██╔████╔██║███████║██████╔╝█████╔╝ █████╗  ██████╔╝</Text>
+        <Text>
+          <Text color={isLight ? "blue" : "cyan"} bold>██╔████╔██║███████║██████╔╝█████╔╝ █████╗  ██████╔╝</Text>
         </Text>
-        <Text backgroundColor="white">
-          <Text color="blue" bold>██║╚██╔╝██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝  ██╔══██╗</Text>
+        <Text>
+          <Text color={isLight ? "blue" : "cyan"} bold>██║╚██╔╝██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝  ██╔══██╗</Text>
         </Text>
-        <Text backgroundColor="white">
+        <Text>
           <Text color="blue" bold>██║ ╚═╝ ██║██║  ██║██║  ██║██║  ██╗███████╗██║  ██║</Text>
         </Text>
-        <Text backgroundColor="white">
+        <Text>
           <Text color="blue" bold>╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝</Text>
         </Text>
         
-        <Text backgroundColor="white"> </Text>
+        <Text> </Text>
 
         {/* CLEANER */}
-        <Text backgroundColor="white">
-          <Text color="blue" bold> ██████╗██╗     ███████╗ █████╗ ███╗   ██╗███████╗██████╗ </Text>
+        <Text>
+          <Text color={isLight ? "blue" : "cyan"} bold> ██████╗██╗     ███████╗ █████╗ ███╗   ██╗███████╗██████╗ </Text>
         </Text>
-        <Text backgroundColor="white">
-          <Text color="blue" bold>██╔════╝██║     ██╔════╝██╔══██╗████╗  ██║██╔════╝██╔══██╗</Text>
+        <Text>
+          <Text color={isLight ? "blue" : "cyan"} bold>██╔════╝██║     ██╔════╝██╔══██╗████╗  ██║██╔════╝██╔══██╗</Text>
         </Text>
-        <Text backgroundColor="white">
+        <Text>
           <Text color="green" bold>██║     ██║     █████╗  ███████║██╔██╗ ██║█████╗  ██████╔╝</Text>
         </Text>
-        <Text backgroundColor="white">
+        <Text>
           <Text color="green" bold>██║     ██║     ██╔══╝  ██╔══██║██║╚██╗██║██╔══╝  ██╔══██╗</Text>
         </Text>
-        <Text backgroundColor="white">
-          <Text color="magenta" bold>╚██████╗███████╗███████╗██║  ██║██║ ╚████║███████╗██║  ██║</Text>
+        <Text>
+          <Text color={isLight ? "magenta" : "yellow"} bold>╚██████╗███████╗███████╗██║  ██║██║ ╚████║███████╗██║  ██║</Text>
         </Text>
-        <Text backgroundColor="white">
-          <Text color="magenta" bold> ╚═════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝</Text>
-          <Text color="black" bold> v1.0.0</Text>
+        <Text>
+          <Text color={isLight ? "magenta" : "yellow"} bold> ╚═════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝</Text>
+          <Text color={isLight ? "black" : "yellow"} bold> v1.0.0</Text>
         </Text>
 
         <Text> </Text>
         <Text>
-          <Text dimColor>         🧹 Professional AI Image Restorer & Cleaner Tool          </Text>
+          <Text color={dim} dimColor={!isLight}>         🧹 Professional AI Image Restorer & Cleaner Tool          </Text>
         </Text>
       </Box>
       {/* 当前配置仪表盘 */}
