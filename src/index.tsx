@@ -119,7 +119,13 @@ const FileSelectionScreen: React.FC<FileSelectionScreenProps> = ({
             onSelect(found.value);
           } else {
             // 手动输入处理
-            const fullPath = file.startsWith("/") || file.match(/^[a-zA-Z]:/) ? file : join(inputDir, file);
+            const isAbsolute =
+              file.startsWith("/") || // Unix absolute
+              file.match(/^[a-zA-Z]:/) || // Windows drive
+              file.startsWith("\\\\") || // Windows UNC
+              file.startsWith("file://"); // File protocol
+
+            const fullPath = isAbsolute ? file : join(inputDir, file);
             onSelect(fullPath.trim());
           }
         }}
@@ -147,7 +153,7 @@ function FileSelectorWithInput(props: {
 
   useInput((input, key) => {
     if (key.tab) {
-      setMode(mode === "list" ? "manual" : "list");
+      setMode((prev) => (prev === "list" ? "manual" : "list"));
     }
     if (key.escape) {
       props.onCancel();

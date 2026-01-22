@@ -1,5 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import pLimit from "p-limit";
 import { REPORT_TEMPLATE } from "./assets/report-template";
 import { formatDuration } from "./utils";
 
@@ -69,11 +70,13 @@ export async function generateHtmlReport(
     )
     .join("");
 
-  // 并行生成缩略图以并行提高效率
+  // 并行生成缩略图以并行提高效率，限制并发数为 4 以防止 OOM
+  const limit = pLimit(4);
   const itemListHtml = (
     await Promise.all(
-      data.map(async (item, idx) => {
-        // Helper to safely read file and resize to thumbnail
+      data.map((item, idx) =>
+        limit(async () => {
+          // Helper to safely read file and resize to thumbnail
         const safeReadThumbnail = async (filePath?: string): Promise<string> => {
           if (!filePath) return "";
           try {
@@ -129,7 +132,8 @@ export async function generateHtmlReport(
     </div>
     `;
         }
-      }),
+        }),
+      ),
     )
   ).join("");
 
