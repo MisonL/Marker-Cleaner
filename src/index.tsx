@@ -438,7 +438,7 @@ const App: React.FC = () => {
   });
 
   return (
-    <Box flexDirection="column" padding={1} width="100%" height="100%" backgroundColor={bg}>
+    <Box flexDirection="column" padding={1} width="100%" height="100%" minHeight="100%" backgroundColor={bg}>
       {/* 标题区域 - 真正旗舰级 Block Logo */}
       <Box flexDirection="column" marginBottom={1}>
         {/* MARKER */}

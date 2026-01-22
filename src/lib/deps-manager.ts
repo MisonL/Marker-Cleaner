@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module"; // Added
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -30,9 +31,11 @@ export class DependencyManager {
     } catch (e) {
       // Then try local deps folder
       try {
-        const localPath = this.getLocalSharpPath();
-        const importUrl = pathToFileURL(localPath).href;
-        await import(importUrl);
+        const depsDir = this.getDepsDir();
+        // Create a require function anchored in the deps directory
+        // We point it to a file inside deps so resolution works from there
+        const customRequire = createRequire(join(depsDir, "package.json")); 
+        customRequire("sharp");
         return true;
       } catch (e2) {
         return false;
@@ -48,9 +51,9 @@ export class DependencyManager {
       // @ts-ignore
       return await import("sharp");
     } catch {
-      const localPath = this.getLocalSharpPath();
-      const importUrl = pathToFileURL(localPath).href;
-      return await import(importUrl);
+      const depsDir = this.getDepsDir();
+      const customRequire = createRequire(join(depsDir, "package.json"));
+      return customRequire("sharp");
     }
   }
 
