@@ -1,4 +1,4 @@
-import sharp from "sharp";
+// import sharp from "sharp"; // Removed top-level import to prevent startup crash if missing
 import type { BoundingBox } from "./types";
 
 /**
@@ -11,6 +11,16 @@ export async function cleanMarkersLocal(
 ): Promise<Buffer> {
   if (boxes.length === 0) {
     return imageBuffer;
+  }
+
+  // Dynamic import sharp
+  let sharp;
+  try {
+    sharp = (await import("sharp")).default;
+  } catch (error) {
+    throw new Error(
+      "Sharp module not found. Please ensure 'sharp' is installed alongside the executable or use Native mode which doesn't require local processing.",
+    );
   }
 
   const image = sharp(imageBuffer);
@@ -164,59 +174,49 @@ export async function convertFormat(
 ): Promise<Buffer> {
   const ext = originalExt ? originalExt.toLowerCase() : "";
 
-  // 核心逻辑：检测输入 Buffer 的真实物理格式
-  const header = imageBuffer.slice(0, 12).toString("hex");
-  let actualType: "jpg" | "png" | "webp" | "unknown" = "unknown";
-
-  if (header.startsWith("89504e470d0a1a0a")) {
-    actualType = "png";
-  } else if (header.startsWith("ffd8ff")) {
-    actualType = "jpg";
-  } else if (header.startsWith("52494646") && header.includes("57454250", 12)) {
-    // RIFF .... WEBP
-    actualType = "webp";
+  // Dynamic import sharp
+  let sharp;
+  try {
+    sharp = (await import("sharp")).default;
+  } catch (error) {
+    // Graceful fallback for "original" mode if sharp is missing
+    // We assume the buffer is valid and return it as is.
+    if (format === "original" || !format) {
+      return imageBuffer;
+    }
+    throw new Error(
+      "Sharp module is required for image format conversion. Please ensure it is installed alongside the executable.",
+    );
   }
 
-  // 判定预期格式
-  let expectedType: typeof actualType = "unknown";
-  if (ext === ".jpg" || ext === ".jpeg") expectedType = "jpg";
+  const image = sharp(imageBuffer).withMetadata();
+
+  // If explicit format is requested
+  if (format === "png") return image.png().toBuffer();
+  if (format === "jpg") return image.jpeg({ quality: 90 }).toBuffer();
+  if (format === "webp") return image.webp({ quality: 90 }).toBuffer();
+
+  // "original" format logic with verification
+  const metadata = await image.metadata();
+  const actualType = metadata.format; // sharp returns 'jpeg', 'png', 'webp' etc.
+
+  let expectedType = "unknown";
+  if (ext === ".jpg" || ext === ".jpeg") expectedType = "jpeg";
   else if (ext === ".png") expectedType = "png";
   else if (ext === ".webp") expectedType = "webp";
 
-  // 情况 1: 如果是原始输出
-  if (format === "original" || !format) {
-    // 只有当物理格式与目标扩展名完全一致时，才走“零损耗直出”
-    if (actualType === expectedType && actualType !== "unknown") {
-      return imageBuffer;
-    }
-
-    // 如果不一致（如 AI 返回 JPEG 但原文件是 WebP），或者无法识别，则必须强制转码以实现名实对齐
-    if (expectedType === "jpg") {
-      return sharp(imageBuffer).withMetadata().jpeg({ quality: 90 }).toBuffer();
-    }
-    if (expectedType === "png") {
-      return sharp(imageBuffer).withMetadata().png().toBuffer();
-    }
-    if (expectedType === "webp") {
-      return sharp(imageBuffer).withMetadata().webp({ quality: 90 }).toBuffer();
-    }
-
-    return imageBuffer; // 彻底无法识别，兜底直出
+  // If actual matches expected, return original buffer (zero loss)
+  if (actualType === expectedType && actualType) {
+    return imageBuffer;
   }
 
-  // 情况 2: 显式指定了输出格式 (png/jpg/webp)
-  const image = sharp(imageBuffer).withMetadata();
+  // Mismatch or unknown: Force transcode to match extension
+  if (expectedType === "jpeg") return image.jpeg({ quality: 90 }).toBuffer();
+  if (expectedType === "png") return image.png().toBuffer();
+  if (expectedType === "webp") return image.webp({ quality: 90 }).toBuffer();
 
-  switch (format) {
-    case "png":
-      return image.png().toBuffer();
-    case "jpg":
-      return image.jpeg({ quality: 90 }).toBuffer();
-    case "webp":
-      return image.webp({ quality: 90 }).toBuffer();
-    default:
-      return imageBuffer;
-  }
+  // Fallback
+  return imageBuffer;
 }
 
 /**
