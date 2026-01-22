@@ -230,6 +230,20 @@ const App: React.FC = () => {
   const fg = isLight ? "black" : "white";
   const dim = isLight ? "gray" : "dim";
 
+  // Change terminal background color using OSC sequences
+  useEffect(() => {
+    if (isLight) {
+        // Set Default Background to White, Foreground to Black
+        process.stdout.write("\x1b]11;#ffffff\x07"); 
+        process.stdout.write("\x1b]10;#000000\x07");
+    } else {
+        // Reset to typically dark defaults (Dark Gray bg, Light Gray fg)
+        // Note: We can't easily know user's original preferred color, so we set a safe dark theme.
+        process.stdout.write("\x1b]11;#0c0c0c\x07");
+        process.stdout.write("\x1b]10;#cccccc\x07");
+    }
+  }, [isLight]);
+
   // Sharp Dependency State
   const [sharpMissing, setSharpMissing] = useState(false);
   const [installingSharp, setInstallingSharp] = useState(false);
