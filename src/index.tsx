@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"; // 新增导入
 import { basename, dirname, extname, join } from "node:path"; // 新增导入
+import { fileURLToPath } from "node:url";
 import { Box, Text, render, useApp, useInput } from "ink";
 import SelectInput from "ink-select-input";
 import Spinner from "ink-spinner";
@@ -119,14 +120,23 @@ const FileSelectionScreen: React.FC<FileSelectionScreenProps> = ({
             onSelect(found.value);
           } else {
             // 手动输入处理
-            const isAbsolute =
-              file.startsWith("/") || // Unix absolute
-              file.match(/^[a-zA-Z]:/) || // Windows drive
-              file.startsWith("\\\\") || // Windows UNC
-              file.startsWith("file://"); // File protocol
+            let finalPath = file.trim();
 
-            const fullPath = isAbsolute ? file : join(inputDir, file);
-            onSelect(fullPath.trim());
+            if (finalPath.startsWith("file://")) {
+              try {
+                finalPath = fileURLToPath(finalPath);
+              } catch {
+                // Ignore invalid URLs, keep as is
+              }
+            }
+
+            const isAbsolute =
+              finalPath.startsWith("/") || // Unix absolute
+              finalPath.match(/^[a-zA-Z]:/) || // Windows drive
+              finalPath.startsWith("\\\\"); // Windows UNC
+
+            const fullPath = isAbsolute ? finalPath : join(inputDir, finalPath);
+            onSelect(fullPath);
           }
         }}
         onCancel={onCancel}

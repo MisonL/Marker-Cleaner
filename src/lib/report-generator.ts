@@ -90,7 +90,15 @@ export async function generateHtmlReport(
             const mime = "image/jpeg"; // 我们强制转成了 jpeg
             return `data:${mime};base64,${resizedBuffer.toString("base64")}`;
           } catch {
-            return ""; // 文件不存在时返回空
+            // 生成失败或 sharp 未安装时，返回一个 SVG 占位符
+            const svg = `
+<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="#eee"/>
+  <text x="50%" y="50%" font-family="Arial" font-size="14" fill="#999" text-anchor="middle" dominant-baseline="middle">
+    Thumbnail Unavailable
+  </text>
+</svg>`;
+            return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
           }
         };
 
