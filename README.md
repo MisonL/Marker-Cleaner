@@ -7,16 +7,16 @@
 
 ### 🧹 Marker Cleaner | 全链路多模态图像标记净化工具
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg?style=flat-square)
-![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)
-![Stack](https://img.shields.io/badge/tech-Bun%20%7C%20React%20Ink%20%7C%20TypeScript-black.svg?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.0.0-blue.svg?style=flat-square) &nbsp;&nbsp;
+![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square) &nbsp;&nbsp;
+![Stack](https://img.shields.io/badge/tech-Bun%20%7C%20React%20Ink%20%7C%20TypeScript-black.svg?style=flat-square) &nbsp;&nbsp;
 ![Lang](https://img.shields.io/badge/lang-简体中文-red.svg?style=flat-square)
 <br/>
 <br/>
 
 **Marker Cleaner** 是一款专为现代视觉内容创作者打造的 **多模态 AI 驱动工具**。它深度集成最前沿的视觉语言模型 (VLM)，能够自动解析、精准定位并智能重绘图片中的各类人工标记（包括但不限于矩形框、指示箭头、文本批注等），实现像素级的背景无损还原。
 
-工具现已全面支持 **Google Gemini 2.0 / 1.5 Pro** 系列与 **Antigravity Pro** 引擎，为您提供工业级的图像处理吞吐量与修复质量。
+工具深度集成 **Antigravity** 旗舰级 AI 引擎（标准首选 `gemini-3-pro-image` 顶级模型），并全面兼容 **Google Official** 官方渠道（支持 `gemini-3-pro-image-preview` 及 `gemini-2.5-flash-image`），为您提供工业级的图像修复质量与极速处理吞吐量。
 
 [快速开始](#-快速开始) • [配置指南](#-配置指南) • [构建部署](#-构建与部署) • [故障排除](#-故障排除)
 
@@ -98,12 +98,28 @@ bun start
 
 ### 核心 Provider 选择
 
-#### 方案 A：追求极速性价比 (Google API)
+#### 方案 A：追求极致画质与能力 (Antigravity - 旗舰推荐)
 
-使用 Google 官方渠道，配合最新的 Gemini 2.5 Flash 模型。
+使用内部 Antigravity 渠道，深度集成 **Gemini 3 Pro Image** 顶级模型，原生支持 Inpainting 且无 Google Cloud Tier 访问限制，是目前效果最稳固、质量最高的选择。
+
+```json
+{
+  "provider": "antigravity",
+  "providerSettings": {
+    "antigravity": {
+      "apiKey": "YOUR_ANTIGRAVITY_TOKEN", // 留空，使用 TUI 内置 L 键自动登录
+      "modelName": "gemini-3-pro-image" // 旗舰标准模型
+    }
+  }
+}
+```
+
+#### 方案 B：追求极速性价比 (Google API)
+
+使用 Google 官方 Cloud 渠道，支持 `gemini-3-pro-image-preview` 和 `gemini-2.5-flash-image` 模型。
 
 > [!IMPORTANT]
-> **注意**：Google 官方 API 要求账号等级达到 **Tier 1** 才能调用 Image 生成模型。如果不满足此条件，请使用 **Antigravity** 渠道。
+> **注意**：Google 官方 API 要求账号等级达到 **Tier 1** 才能调用 Image 生成模型。如果不满足此条件，请务必使用 **Antigravity** 渠道。
 
 ```json
 {
@@ -111,23 +127,7 @@ bun start
   "providerSettings": {
     "google": {
       "apiKey": "YOUR_GOOGLE_API_KEY",
-      "modelName": "gemini-2.5-flash-image"
-    }
-  }
-}
-```
-
-#### 方案 B：追求极致画质与能力 (Antigravity - 推荐)
-
-使用内部 Antigravity 渠道，支持 Gemini 3 全系列顶级模型，且无 Tier 限制。
-
-```json
-{
-  "provider": "antigravity",
-  "providerSettings": {
-    "antigravity": {
-      "apiKey": "YOUR_ANTIGRAVITY_TOKEN", // 留空，使用 TUI 内置登录功能
-      "modelName": "gemini-3-pro-image" // 或在 TUI 选择 (Manual Input) 输入自定义模型
+      "modelName": "gemini-2.5-flash-image" // 或 gemini-3-pro-image-preview
     }
   }
 }

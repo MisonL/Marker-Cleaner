@@ -1,5 +1,5 @@
 <svg width="800" height="400" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" fill="#0a0a0a"/>
+  <rect width="100%" height="100%" rx="20" ry="20" fill="#FFFFFF"/>
   <style>
     .ascii {
       font-family: 'Courier New', Courier, monospace;
@@ -7,11 +7,11 @@
       font-size: 14px;
       white-space: pre;
     }
-    .white { fill: #FFFFFF; }
-    .cyan { fill: #00FFFF; }
-    .blue { fill: #51a2da; }
-    .green { fill: #00FF00; }
-    .yellow { fill: #FFFF00; }
+    .white { fill: #333333; }
+    .cyan { fill: #008B8B; }
+    .blue { fill: #0000CD; }
+    .green { fill: #006400; }
+    .yellow { fill: #FFD700; }
     .grey { fill: #666666; }
   </style>
   
