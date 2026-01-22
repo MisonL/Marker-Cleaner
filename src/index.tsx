@@ -976,11 +976,16 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
         if (field.key === "modelName" && isFocused) {
           const isNative = String(value).toLowerCase().includes("image");
           hintComponent = (
-            <Box marginLeft={2}>
+            <Box marginLeft={2} flexDirection="column">
               <Text color={isNative ? "green" : "cyan"} dimColor>
                 {isNative
-                  ? "🎨 Native Mode (AI 重绘生成 / 适合复杂背景)"
-                  : "⚡ Detection Mode (AI 识别 + 本地修复 / 适合纯色背景 / 省钱)"}
+                  ? "🎨 Native Mode: 使用图像生成模型 (如 Gemini Image) 直接重绘修复区域"
+                  : "⚡ Detection Mode: 使用视觉模型定位标记 + 本地算法修复 (更快更省钱)"}
+              </Text>
+              <Text dimColor color="gray">
+                {isNative
+                  ? "   适合复杂背景 / 高质量需求 / Token 消耗较高"
+                  : "   适合纯色/简单背景 / 批量处理 / Token 消耗极低"}
               </Text>
             </Box>
           );
