@@ -358,36 +358,68 @@ const App: React.FC = () => {
 
   return (
     <Box flexDirection="column" padding={1}>
-      {/* 标题 */}
-      <Box
-        flexDirection="column"
-        borderStyle="round"
-        borderColor="cyan"
-        paddingX={3}
-        paddingY={0}
-        marginBottom={1}
-        alignSelf="flex-start"
-      >
-        <Text bold color="cyan">
-          🧹 MARKER CLEANER
+      {/* 标题区域 - 专业 Logo */}
+      <Box flexDirection="column" marginBottom={1}>
+        <Text color="cyan" bold>
+          ╔══════════════════════════════════════════════════════════════════╗
         </Text>
-        <Text dimColor>Professional AI Image Restorer v1.0.0</Text>
+        <Text>
+          <Text color="cyan" bold>║</Text>
+          <Text color="white" bold>  ███╗   ███╗ █████╗ ██████╗ ██╗  ██╗███████╗██████╗              </Text>
+          <Text color="cyan" bold>║</Text>
+        </Text>
+        <Text>
+          <Text color="cyan" bold>║</Text>
+          <Text color="white" bold>  ████╗ ████║██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗             </Text>
+          <Text color="cyan" bold>║</Text>
+        </Text>
+        <Text>
+          <Text color="cyan" bold>║</Text>
+          <Text color="green" bold>  ██╔████╔██║███████║██████╔╝█████╔╝ █████╗  ██████╔╝             </Text>
+          <Text color="cyan" bold>║</Text>
+        </Text>
+        <Text>
+          <Text color="cyan" bold>║</Text>
+          <Text color="green" bold>  ██║╚██╔╝██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝  ██╔══██╗             </Text>
+          <Text color="cyan" bold>║</Text>
+        </Text>
+        <Text>
+          <Text color="cyan" bold>║</Text>
+          <Text color="blue" bold>  ██║ ╚═╝ ██║██║  ██║██║  ██║██║  ██╗███████╗██║  ██║             </Text>
+          <Text color="cyan" bold>║</Text>
+        </Text>
+        <Text>
+          <Text color="cyan" bold>║</Text>
+          <Text color="blue" bold>  ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝             </Text>
+          <Text color="cyan" bold>║</Text>
+        </Text>
+        <Text>
+          <Text color="cyan" bold>║</Text>
+          <Text color="magenta" bold>             🧹 CLEANER</Text>
+          <Text dimColor>  - Professional AI Image Restorer</Text>
+          <Text color="yellow" bold>  v1.0.0 </Text>
+          <Text color="cyan" bold>║</Text>
+        </Text>
+        <Text color="cyan" bold>
+          ╚══════════════════════════════════════════════════════════════════╝
+        </Text>
       </Box>
 
-      {/* Provider 信息 - 状态胶囊 */}
-      <Box marginBottom={1}>
-        <Box borderStyle="single" borderColor="gray" paddingX={1} marginRight={2}>
-          <Text color="magenta">Provider</Text>
-          <Text> {config.provider}</Text>
-        </Box>
-        <Box borderStyle="single" borderColor="gray" paddingX={1}>
-          <Text color="blue">Model</Text>
-          <Text> {config.modelName}</Text>
-        </Box>
-        <Box borderStyle="single" borderColor={config.modelName.toLowerCase().includes("image") ? "green" : "cyan"} paddingX={1}>
-          <Text color={config.modelName.toLowerCase().includes("image") ? "green" : "cyan"}>
-            {config.modelName.toLowerCase().includes("image") ? "🎨 Native" : "⚡ Detection"}
-          </Text>
+      {/* 当前配置仪表盘 */}
+      <Box marginBottom={1} flexDirection="column">
+        <Text dimColor>─────────── 当前配置 ───────────</Text>
+        <Box marginTop={0}>
+          <Box borderStyle="round" borderColor="magenta" paddingX={1} marginRight={1}>
+            <Text color="magenta" bold>⚡ {config.provider.toUpperCase()}</Text>
+          </Box>
+          <Box borderStyle="round" borderColor="blue" paddingX={1} marginRight={1}>
+            <Text color="blue">🤖 {config.modelName}</Text>
+          </Box>
+          <Box borderStyle="round" borderColor={config.modelName.toLowerCase().includes("image") ? "green" : "yellow"} paddingX={1}>
+            <Text color={config.modelName.toLowerCase().includes("image") ? "green" : "yellow"} bold>
+              {config.modelName.toLowerCase().includes("image") ? "🎨 Native Mode" : "⚡ Detection Mode"}
+            </Text>
+          </Box>
         </Box>
       </Box>
 
