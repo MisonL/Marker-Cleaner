@@ -3,7 +3,8 @@ import { basename, dirname, extname, join } from "node:path"; // 新增导入
 import { Box, Text, render, useApp, useInput } from "ink";
 import SelectInput from "ink-select-input";
 import Spinner from "ink-spinner";
-import TextInput from "ink-text-input"; // 新增导入
+import TextInput from "ink-text-input";
+import { DependencyManager } from "./lib/deps-manager"; // 新增导入
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { createProvider } from "./lib/ai";
@@ -58,16 +59,14 @@ function useShortcuts(params: {
     if (screen === "done" && lowerInput === "o" && canOpenReport) {
       onOpenReport?.();
     }
+
+    // 安装依赖快捷键 (Menu only)
+    // We handle this via a callback prop passed down or directly here if we had access.
+    // Since useShortcuts is generic, we'll handle specific 'i' key separately in the main component logic or pass a handler.
   });
 }
 
-// ============ 依赖检测 ============
-let sharpAvailable = true;
-try {
-  require("sharp");
-} catch {
-  sharpAvailable = false;
-}
+// ============ 依赖检测 (Removed raw check, moved to component) ============
 
 type Screen = "menu" | "config" | "process" | "done" | "file-selection";
 
@@ -207,6 +206,36 @@ const App: React.FC = () => {
   }>({});
   const [error, setError] = useState("");
   const [isGlobalEditing, setIsGlobalEditing] = useState(false);
+
+  // Sharp Dependency State
+  const [sharpMissing, setSharpMissing] = useState(false);
+  const [installingSharp, setInstallingSharp] = useState(false);
+  const [pkgManager, setPkgManager] = useState<"npm" | "bun" | null>(null);
+
+  useEffect(() => {
+    const deps = DependencyManager.getInstance();
+    deps.checkSharp().then((available) => {
+      setSharpMissing(!available);
+      if (!available) {
+        setPkgManager(deps.detectPackageManager());
+      }
+    });
+  }, []);
+
+  const handleInstallSharp = async () => {
+    if (installingSharp) return;
+    setInstallingSharp(true);
+    setStatus("📦 正在安装依赖 sharp...");
+    try {
+      await DependencyManager.getInstance().installSharp();
+      setSharpMissing(false);
+      setStatus("✅ 依赖安装成功！");
+    } catch (err) {
+      setError(`安装失败: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setInstallingSharp(false);
+    }
+  };
 
   const [reportPath, setReportPath] = useState<string | undefined>();
   const [sessionStats, setSessionStats] = useState<{
@@ -356,6 +385,13 @@ const App: React.FC = () => {
     isEditing: isGlobalEditing,
   });
 
+  // Global key listener for 'i' install
+  useInput((input, key) => {
+     if (screen === "menu" && sharpMissing && !installingSharp && pkgManager && input.toLowerCase() === "i") {
+        handleInstallSharp();
+     }
+  });
+
   return (
     <Box flexDirection="column" padding={1}>
       {/* 标题区域 - 真正旗舰级 Block Logo */}
@@ -445,7 +481,7 @@ const App: React.FC = () => {
       )}
 
       {/* Sharp 依赖缺失警告 */}
-      {screen === "menu" && !sharpAvailable && (
+      {screen === "menu" && sharpMissing && (
         <Box
           marginBottom={1}
           borderStyle="round"
@@ -454,13 +490,27 @@ const App: React.FC = () => {
           paddingX={1}
         >
           <Text color="yellow" bold>
-            ⚠️ 缺少依赖: sharp
+            ⚠️ 检测到缺少依赖: sharp
           </Text>
-          <Text color="yellow">本地图像修复功能需要 sharp 模块。请运行:</Text>
-          <Text color="cyan" bold>
-            {" "}
-            bun add sharp
-          </Text>
+          <Text color="yellow">本地模式 (Detection Mode) 需要 sharp 模块。</Text>
+          
+          {installingSharp ? (
+            <Box marginTop={1}>
+              <Text color="cyan">
+                <Spinner type="dots" /> 正在自动安装 sharp (可能需要等待几分钟)...
+              </Text>
+            </Box>
+          ) : pkgManager ? (
+             <Box marginTop={1} flexDirection="column">
+                <Text>检测到您已安装 {pkgManager}。</Text>
+                <Text color="green" bold>💡 按 'I' 键自动安装</Text>
+             </Box>
+          ) : (
+            <Box marginTop={1} flexDirection="column">
+               <Text color="red">未检测到 Node.js 环境 (npm/bun)。</Text>
+               <Text>请先安装 Node.js，然后在同级目录运行: npm install sharp</Text>
+            </Box>
+          )}
         </Box>
       )}
 
