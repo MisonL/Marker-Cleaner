@@ -310,11 +310,20 @@ const App: React.FC = () => {
 
       let pendingTasks: BatchTask[] = [];
       if (singleFilePath) {
+        let normalizedPath = singleFilePath.trim();
+        if (normalizedPath.startsWith("file://")) {
+          try {
+            normalizedPath = fileURLToPath(normalizedPath);
+          } catch {
+            // Ignore invalid URLs
+          }
+        }
+
         const isAbsolute =
-          singleFilePath.startsWith("/") ||
+          normalizedPath.startsWith("/") ||
           (process.platform === "win32" &&
-            (singleFilePath.includes(":") || singleFilePath.startsWith("\\\\")));
-        const absPath = isAbsolute ? singleFilePath : join(process.cwd(), singleFilePath);
+            (normalizedPath.includes(":") || normalizedPath.startsWith("\\\\")));
+        const absPath = isAbsolute ? normalizedPath : join(process.cwd(), normalizedPath);
 
         if (!existsSync(absPath)) throw new Error(`文件不存在: ${absPath}`);
 
