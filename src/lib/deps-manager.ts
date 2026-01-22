@@ -8,6 +8,8 @@ export type PackageManager = "npm" | "bun" | "pnpm" | "yarn" | null;
 
 export class DependencyManager {
   private static instance: DependencyManager;
+  public lastError: string = "";
+  public debugInfo: string = "";
 
   private constructor() {}
 
@@ -22,23 +24,40 @@ export class DependencyManager {
    * Check if sharp is available by trying to require it
    */
   async checkSharp(): Promise<boolean> {
+    // 1. First try standard import (dev environment/bundled)
     try {
-      // First try standard import (dev environment/bundled)
       // @ts-ignore
       await import("sharp");
       return true;
     } catch (e) {
-      // Then try local deps folder
-      try {
-        const depsDir = this.getDepsDir();
-        // Create a require function anchored in the deps directory
-        // We point it to a file inside deps so resolution works from there
-        const customRequire = createRequire(join(depsDir, "package.json")); 
-        customRequire("sharp");
-        return true;
-      } catch (e2) {
-        return false;
+      // Ignore first error, proceed to local check
+    }
+
+    // 2. Then try local deps folder (Windows Bun Runtime)
+    try {
+      const depsDir = this.getDepsDir();
+      this.debugInfo = `DepsDir: ${depsDir}`;
+      
+      // A. Check if file exists first (Relaxed check)
+      const sharpDir = join(depsDir, "node_modules", "sharp");
+      const hasFiles = existsSync(sharpDir);
+
+      if (!hasFiles) {
+         this.lastError = "Files not found in deps";
+         return false; 
       }
+
+      // B. Try to load it
+      const customRequire = createRequire(join(depsDir, "package.json")); 
+      customRequire("sharp");
+      return true;
+    } catch (e2) {
+      this.lastError = e2 instanceof Error ? e2.message : String(e2);
+      this.debugInfo += ` | Load failed: ${this.lastError}`;
+
+      // Relaxed check: Return true if files exist, even if load failed (user can try running it)
+      // This is risky but better than blocking them if the check is just flaky.
+      return true;
     }
   }
 

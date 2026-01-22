@@ -553,6 +553,14 @@ const App: React.FC = () => {
              <Box marginTop={1} flexDirection="column">
                 <Text>检测到您已安装 {pkgManager}。</Text>
                 <Text color="green" bold>💡 按 'I' 键自动安装</Text>
+                {DependencyManager.getInstance().lastError && (
+                  <Box marginTop={1} borderStyle="single" borderColor="red" paddingX={1}>
+                     <Text color="red">Debug: {DependencyManager.getInstance().lastError}</Text>
+                  </Box>
+                )}
+                {DependencyManager.getInstance().debugInfo && (
+                  <Text dimColor>Path: {DependencyManager.getInstance().debugInfo}</Text>
+               )}
              </Box>
           ) : (
             <Box marginTop={1} flexDirection="column">
