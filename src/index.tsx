@@ -368,7 +368,7 @@ const App: React.FC = () => {
           <Text color="cyan" bold>   /  |/  // _ | / _ \/ //_// _/ / _ \      </Text>
         </Text>
         <Text>
-          <Text color="blue" bold>  / /|_/ // __ |/ , _/ ,<  / _/ / , _/      </Text>
+          <Text color="blue" bold>  / /|_/ // __ |/ , _/ ,{"<"}  / _/ / , _/      </Text>
         </Text>
         <Text>
           <Text color="blue" bold> /_/  /_//_/ |_/_/|_/_/|_|/___//_/|_|       </Text>
