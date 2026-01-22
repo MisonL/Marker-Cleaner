@@ -13,7 +13,7 @@ function isAntigravityProvider(provider: unknown): provider is AntigravityProvid
   return provider instanceof AntigravityProvider;
 }
 import { BatchProcessor } from "./lib/batch-processor";
-import { type Config, loadConfig, resetConfig, saveConfig } from "./lib/config-manager";
+import { type Config, getDefaultConfig, loadConfig, resetConfig, saveConfig } from "./lib/config-manager";
 import { createLogger } from "./lib/logger";
 import type { BatchTask } from "./lib/types";
 import { formatDuration, normalizePath, openPath, renderImageToTerminal } from "./lib/utils";
@@ -220,8 +220,7 @@ const App: React.FC = () => {
     { label: "🚀 批量处理", value: "start", icon: "🚀" },
     { label: "🖼️  单文件处理", value: "single", icon: "🖼️" },
     { label: "⚙️  配置设置", value: "settings", icon: "⚙️" },
-    { label: "🔄 恢复默认配置", value: "reset", icon: "🔄" },
-    { label: "🚪 退出", value: "exit", icon: "🚪" },
+    { label: " 退出", value: "exit", icon: "🚪" },
   ];
 
   const handleMenuSelect = async (item: MenuItem) => {
@@ -236,12 +235,6 @@ const App: React.FC = () => {
       case "settings":
         setScreen("config");
         break;
-      case "reset": {
-        const newConfig = resetConfig();
-        setConfig(newConfig);
-        setStatus("✅ 已恢复默认配置");
-        break;
-      }
       case "exit":
         exit();
         setTimeout(() => process.exit(0), 100); // 强制退出以避免挂起
@@ -894,6 +887,10 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
       onSave(finalConfig);
     } else if (key.escape) {
       onCancel();
+    } else if (input === "d") {
+      // 恢复默认配置 (仅更新当前编辑状态，需按 S 保存)
+      setEditConfig(getDefaultConfig());
+      setLoginMsg("✅ 已加载默认配置 (请按 S 保存)");
     }
   });
 
@@ -1107,8 +1104,9 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
           <Text dimColor>保存配置 | </Text>
           <Text color="magenta"> A </Text>
           <Text dimColor>{showAdvanced ? "折叠" : "展开"}高级 | </Text>
-          <Text color="magenta"> O </Text>
-          <Text dimColor>日志目录</Text>
+          <Text dimColor>日志目录 | </Text>
+          <Text color="magenta"> D </Text>
+          <Text dimColor>恢复默认</Text>
           {editConfig.provider === "antigravity" && (
             <>
               <Text dimColor> | </Text>
