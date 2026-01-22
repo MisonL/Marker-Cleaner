@@ -1,6 +1,6 @@
-import { execSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 export type PackageManager = "npm" | "bun" | "pnpm" | "yarn" | null;
 
@@ -31,7 +31,8 @@ export class DependencyManager {
       // Then try local deps folder
       try {
         const localPath = this.getLocalSharpPath();
-        await import(localPath);
+        const importUrl = pathToFileURL(localPath).href;
+        await import(importUrl);
         return true;
       } catch (e2) {
         return false;
@@ -48,7 +49,8 @@ export class DependencyManager {
       return await import("sharp");
     } catch {
       const localPath = this.getLocalSharpPath();
-      return await import(localPath);
+      const importUrl = pathToFileURL(localPath).href;
+      return await import(importUrl);
     }
   }
 
