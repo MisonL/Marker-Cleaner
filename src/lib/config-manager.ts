@@ -225,7 +225,10 @@ export function loadConfig(): Config {
       // 深度合并 providerSettings，确保每个 provider 的字段都完整
       merged.providerSettings = {
         openai: { ...defaultConfig.providerSettings.openai, ...parsed.providerSettings.openai },
-        antigravity: { ...defaultConfig.providerSettings.antigravity, ...parsed.providerSettings.antigravity },
+        antigravity: {
+          ...defaultConfig.providerSettings.antigravity,
+          ...parsed.providerSettings.antigravity,
+        },
         google: { ...defaultConfig.providerSettings.google, ...parsed.providerSettings.google },
       };
     }

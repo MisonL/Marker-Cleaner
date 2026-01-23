@@ -1,11 +1,15 @@
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 import {
+  base64URLEncode,
   detectMimeType,
+  formatDuration,
   getPlatformInfo,
   normalizePath,
   parseBoxesFromText,
+  renderImageToTerminal,
+  sha256,
 } from "../lib/utils";
-import { join } from "node:path";
 
 describe("normalizePath", () => {
   test("should handle file:// URLs and fallbacks", () => {
@@ -110,5 +114,63 @@ describe("getPlatformInfo", () => {
     expect(typeof platform).toBe("string");
     expect(typeof arch).toBe("string");
     expect(["windows", "macos", "linux"]).toContain(platform);
+  });
+});
+
+describe("formatDuration", () => {
+  test("should format milliseconds to readable string", () => {
+    expect(formatDuration(1000)).toBe("1s");
+    expect(formatDuration(61000)).toBe("1m 1s");
+    expect(formatDuration(3661000)).toBe("1h 1m 1s");
+    expect(formatDuration(3600000)).toBe("1h 0m 0s");
+  });
+});
+
+describe("base64URLEncode", () => {
+  test("should encode buffer to base64url", () => {
+    const buffer = Buffer.from("Hello+World/Test?");
+    const encoded = base64URLEncode(buffer);
+    // Base64: SGVsbG8rV29ybGQvVGVzdD8=
+    // URL Safe: SGVsbG8rV29ybGQvVGVzdD8 (our impl replaces + with - and / with _)
+    // Wait, our impl:
+    // .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
+    // 'SGVsbG8rV29ybGQvVGVzdD8=' -> 'SGVsbG8-V29ybGQ_VGVzdD8'
+    expect(encoded).not.toContain("+");
+    expect(encoded).not.toContain("/");
+    expect(encoded).not.toContain("=");
+  });
+});
+
+describe("renderImageToTerminal", () => {
+  test("should return placeholder when not in iTerm2", () => {
+    const originalTerm = process.env.TERM_PROGRAM;
+    process.env.TERM_PROGRAM = undefined;
+
+    const buffer = Buffer.from("test");
+    const output = renderImageToTerminal(buffer);
+    expect(output).toBe("🖼️ [Image]");
+
+    process.env.TERM_PROGRAM = originalTerm;
+  });
+
+  test("should return iTerm2 sequence when in iTerm2", () => {
+    const originalTerm = process.env.TERM_PROGRAM;
+    process.env.TERM_PROGRAM = "iTerm.app";
+
+    const buffer = Buffer.from("test");
+    const output = renderImageToTerminal(buffer);
+    expect(output).toContain("\x1b]1337;File=inline=1");
+
+    process.env.TERM_PROGRAM = originalTerm;
+  });
+});
+
+describe("sha256", () => {
+  test("should return correct hash", () => {
+    const buffer = Buffer.from("test");
+    const hash = sha256(buffer);
+    expect(hash.toString("hex")).toBe(
+      "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    );
   });
 });

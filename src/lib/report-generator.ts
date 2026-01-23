@@ -77,21 +77,21 @@ export async function generateHtmlReport(
       data.map((item, idx) =>
         limit(async () => {
           // Helper to safely read file and resize to thumbnail
-        const safeReadThumbnail = async (filePath?: string): Promise<string> => {
-          if (!filePath) return "";
-          try {
-            const buffer = require("node:fs").readFileSync(filePath);
-            // 这里我们使用 sharp 缩放图片到 1024px，不仅节省体积也防止大图导致 OOM
-            const resizedBuffer = await require("sharp")(buffer)
-              .resize({ width: 1024, withoutEnlargement: true })
-              .toFormat("jpeg", { quality: 75 }) // 质量设为 75% 兼顾清晰度与体积
-              .toBuffer();
+          const safeReadThumbnail = async (filePath?: string): Promise<string> => {
+            if (!filePath) return "";
+            try {
+              const buffer = require("node:fs").readFileSync(filePath);
+              // 这里我们使用 sharp 缩放图片到 1024px，不仅节省体积也防止大图导致 OOM
+              const resizedBuffer = await require("sharp")(buffer)
+                .resize({ width: 1024, withoutEnlargement: true })
+                .toFormat("jpeg", { quality: 75 }) // 质量设为 75% 兼顾清晰度与体积
+                .toBuffer();
 
-            const mime = "image/jpeg"; // 我们强制转成了 jpeg
-            return `data:${mime};base64,${resizedBuffer.toString("base64")}`;
-          } catch {
-            // 生成失败或 sharp 未安装时，返回一个 SVG 占位符
-            const svg = `
+              const mime = "image/jpeg"; // 我们强制转成了 jpeg
+              return `data:${mime};base64,${resizedBuffer.toString("base64")}`;
+            } catch {
+              // 生成失败或 sharp 未安装时，返回一个 SVG 占位符
+              const svg = `
 <svg width="400" height="200" xmlns="http://www.w3.org/2000/svg">
   <rect width="100%" height="100%" fill="#eee"/>
   <text x="50%" y="40%" font-family="Arial" font-size="16" fill="#666" text-anchor="middle" dominant-baseline="middle" font-weight="bold">
@@ -104,15 +104,15 @@ export async function generateHtmlReport(
     (或使用 npm install sharp / yarn add sharp)
   </text>
 </svg>`;
-            return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
-          }
-        };
+              return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+            }
+          };
 
-        if (item.success) {
-          const beforeUri = await safeReadThumbnail(item.absoluteInputPath);
-          const afterUri = await safeReadThumbnail(item.absoluteOutputPath);
+          if (item.success) {
+            const beforeUri = await safeReadThumbnail(item.absoluteInputPath);
+            const afterUri = await safeReadThumbnail(item.absoluteOutputPath);
 
-          return `
+            return `
     <div class="item-card" id="item-${idx}">
         <div class="item-header">
             <div class="item-title">${escapeHtml(item.file)}</div>
@@ -135,7 +135,7 @@ export async function generateHtmlReport(
         </div>
     </div>
     `;
-        } else {
+          }
           return `
     <div class="item-card" id="item-${idx}">
         <div class="item-header">
@@ -145,7 +145,6 @@ export async function generateHtmlReport(
         <div class="error-msg">错误: ${escapeHtml(item.error || "未知错误")}</div>
     </div>
     `;
-        }
         }),
       ),
     )

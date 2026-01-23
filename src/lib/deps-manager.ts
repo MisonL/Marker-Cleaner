@@ -1,15 +1,15 @@
+import { execSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module"; 
+import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { execSync, spawn } from "node:child_process";
 
 export type PackageManager = "npm" | "bun" | "pnpm" | "yarn" | null;
 
 export class DependencyManager {
   private static instance: DependencyManager;
-  public lastError: string = "";
-  public debugInfo: string = "";
+  public lastError = "";
+  public debugInfo = "";
 
   private constructor() {}
 
@@ -37,18 +37,18 @@ export class DependencyManager {
     try {
       const depsDir = this.getDepsDir();
       this.debugInfo = `DepsDir: ${depsDir}`;
-      
+
       // A. Check if file exists first (Relaxed check)
       const sharpDir = join(depsDir, "node_modules", "sharp");
       const hasFiles = existsSync(sharpDir);
 
       if (!hasFiles) {
-         this.lastError = "Files not found in deps";
-         return false; 
+        this.lastError = "Files not found in deps";
+        return false;
       }
 
       // B. Try to load it
-      const customRequire = createRequire(join(depsDir, "package.json")); 
+      const customRequire = createRequire(join(depsDir, "package.json"));
       customRequire("sharp");
       return true;
     } catch (e2) {
@@ -64,6 +64,7 @@ export class DependencyManager {
   /**
    * Resolve sharp module for usage
    */
+  // biome-ignore lint/suspicious/noExplicitAny: sharp module is dynamic
   async loadSharp(): Promise<any> {
     try {
       // @ts-ignore
@@ -122,7 +123,7 @@ export class DependencyManager {
       }
 
       const depsDir = this.getDepsDir();
-      
+
       // 1. Create deps dir if not exists
       if (!existsSync(depsDir)) {
         mkdirSync(depsDir, { recursive: true });
@@ -131,19 +132,26 @@ export class DependencyManager {
       // 2. Create minimal package.json if not exists (Avoids 'init' clutter)
       const pkgJsonPath = join(depsDir, "package.json");
       if (!existsSync(pkgJsonPath)) {
-        writeFileSync(pkgJsonPath, JSON.stringify({
-          name: "marker-cleaner-deps",
-          version: "1.0.0",
-          private: true,
-          description: "Auto-generated dependencies for Marker Cleaner Runtime",
-          license: "UNLICENSED"
-        }, null, 2));
+        writeFileSync(
+          pkgJsonPath,
+          JSON.stringify(
+            {
+              name: "marker-cleaner-deps",
+              version: "1.0.0",
+              private: true,
+              description: "Auto-generated dependencies for Marker Cleaner Runtime",
+              license: "UNLICENSED",
+            },
+            null,
+            2,
+          ),
+        );
       }
 
       const cmd = pm;
-      // Force npm on Windows to use cmd shim if needed, but exec/spawn usually handles it. 
+      // Force npm on Windows to use cmd shim if needed, but exec/spawn usually handles it.
       // Safest to just run the command name if it's in PATH.
-      
+
       const args = pm === "npm" ? ["install", "sharp"] : ["add", "sharp"];
 
       console.log(`Installing sharp using ${pm} in ${depsDir}...`);
@@ -152,7 +160,7 @@ export class DependencyManager {
       const child = spawn(cmd, args, {
         stdio: "pipe", // Capture output
         shell: true,
-        cwd: depsDir, 
+        cwd: depsDir,
       });
 
       child.stdout?.on("data", (data: Buffer) => {
@@ -165,7 +173,7 @@ export class DependencyManager {
       child.stderr?.on("data", (data: Buffer) => {
         const lines = data.toString().split("\n");
         for (const line of lines) {
-           if (line.trim()) onLog?.(line.trim().slice(0, 60));
+          if (line.trim()) onLog?.(line.trim().slice(0, 60));
         }
       });
 

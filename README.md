@@ -7,7 +7,7 @@
 
 ### 🧹 Marker Cleaner | 全链路多模态图像标记净化工具
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg?style=flat-square)&emsp;
+![Version](https://img.shields.io/badge/version-1.1.0-blue.svg?style=flat-square)&emsp;
 ![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)&emsp;
 ![Stack](https://img.shields.io/badge/tech-Bun%20%7C%20React%20Ink%20%7C%20TypeScript-black.svg?style=flat-square)&emsp;
 ![Lang](https://img.shields.io/badge/lang-简体中文-red.svg?style=flat-square)
@@ -66,7 +66,8 @@
 - **任务级智能熔断**: 内置 120秒 任务超时熔断机制，防止单任务阻塞整体进度。
 - **成本熔断机制**: 支持设置 `budgetLimit` (美元)，达到预算上限自动安全停机。
 - **便携单文件**: 报告模板内置，编译后的二进制文件可 **单文件独立运行**，无需任何依赖。
-- **可视化报表**: 处理完成后自动生成 HTML 报告，含处理前后对比及详细数据。
+- **可视化报表**: 处理完成后自动生成 HTML 报告，含处理前后对比、Token 统计及**跨平台历史任务切换**。
+- **极致兼容性**: 针对大模型返回的不稳定 JSON (如 Qwen-VL) 内置了**破碎修复算法**，即便回复截断也能抢救坐标。
 
 ---
 
@@ -114,13 +115,6 @@ bun start
 }
 ```
 
-#### 方案 B：追求极速性价比 (Google API)
-
-使用 Google 官方 Cloud 渠道，支持 `gemini-3-pro-image-preview` 和 `gemini-2.5-flash-image` 模型。
-
-> [!IMPORTANT]
-> **注意**：Google 官方 API 要求账号等级达到 **Tier 1** 才能调用 Image 生成模型。如果不满足此条件，请务必使用 **Antigravity** 渠道。
-
 ```json
 {
   "provider": "google",
@@ -128,6 +122,23 @@ bun start
     "google": {
       "apiKey": "YOUR_GOOGLE_API_KEY",
       "modelName": "gemini-2.5-flash-image" // 或 gemini-3-pro-image-preview
+    }
+  }
+}
+```
+
+#### 方案 C：全开放生态 (OpenAI Compatible)
+
+支持所有遵循 OpenAI 标准接口的视觉大模型。特别针对 **通义千问 Qwen-VL** 系列进行了深度优化，支持处理不稳定的 JSON 输出。
+
+```json
+{
+  "provider": "openai",
+  "providerSettings": {
+    "openai": {
+      "apiKey": "YOUR_API_KEY",
+      "baseUrl": "https://api.your-provider.com/v1",
+      "modelName": "qwen3-vl-plus"
     }
   }
 }

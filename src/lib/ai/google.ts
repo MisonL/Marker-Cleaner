@@ -70,6 +70,7 @@ export class GoogleProvider implements AIProvider {
           return this.parseResponse(response);
         } catch (error: unknown) {
           lastError = error;
+          // biome-ignore lint/suspicious/noExplicitAny: error handling
           const err = error as any;
           const status = err?.status || err?.response?.status;
           const message = err?.message || String(error);

@@ -19,7 +19,7 @@ export function normalizePath(pathStr: string, baseDir?: string): string {
       // 处理 file://C:/ 这种非标准但常见的格式
       finalPath = finalPath.replace(/^file:\/\/+(?=[a-zA-Z]:)/, "");
       finalPath = finalPath.replace(/^file:\/\/\/?/, "");
-      
+
       // 对剥离后的路径再次进行绝对路径检查
       const isAbsolute =
         finalPath.startsWith("/") ||
@@ -60,9 +60,6 @@ export function detectMimeType(buffer: Buffer): string {
   return "image/png"; // 默认
 }
 
-/**
- * 从文本中解析 BoundingBox 数组
- */
 export function parseBoxesFromText(text: string): Array<{
   ymin: number;
   xmin: number;
@@ -70,32 +67,129 @@ export function parseBoxesFromText(text: string): Array<{
   xmax: number;
 }> {
   try {
+    // 1. 提取最可能的 JSON 数组部分
+    let jsonContent = "";
     const jsonMatch = text.match(/\[[\s\S]*?\]/);
-    if (!jsonMatch) return [];
+    if (jsonMatch) {
+      jsonContent = jsonMatch[0];
+    } else {
+      // 尝试匹配未闭合的左括号开始的部分
+      const startIndex = text.indexOf("[");
+      if (startIndex !== -1) {
+        jsonContent = text.slice(startIndex);
+      }
+    }
 
-    const parsed = JSON.parse(jsonMatch[0]) as unknown[];
+    if (!jsonContent) return [];
+
+    // 2. 尝试清洗 JSON (处理可能出现的截断或多余逗号)
+    let cleaned = jsonContent.trim();
+    // 移除末尾可能的非 JSON 字符（如Markdown代码块结束符）
+    cleaned = cleaned.replace(/`+$/, "").trim();
+
+    // 处理截断：如果以逗号结尾，尝试移除
+    if (cleaned.endsWith(",")) {
+      cleaned = cleaned.slice(0, -1);
+    }
+
+    // 处理未闭合的括号
+    const openBrackets = (cleaned.match(/\[/g) || []).length;
+    const closeBrackets = (cleaned.match(/\]/g) || []).length;
+    if (openBrackets > closeBrackets) {
+      cleaned += "]".repeat(openBrackets - closeBrackets);
+    }
+    const openCurly = (cleaned.match(/\{/g) || []).length;
+    const closeCurly = (cleaned.match(/\}/g) || []).length;
+    if (openCurly > closeCurly) {
+      // 检查当前最后是否正在写一个对象，如果是，补齐
+      if (!cleaned.endsWith("}") && !cleaned.endsWith("]")) {
+        cleaned += "}";
+      }
+      if ((cleaned.match(/\{/g) || []).length > (cleaned.match(/\}/g) || []).length) {
+        cleaned += "}".repeat(openCurly - (cleaned.match(/\}/g) || []).length);
+      }
+    }
+
+    // 再次递归修复可能的非法尾随逗号 (e.g., [...,])
+    cleaned = cleaned.replace(/,\s*\]/g, "]").replace(/,\s*\}/g, "}");
+
+    // biome-ignore lint/suspicious/noExplicitAny: recover from broken JSON
+    let parsed: any[];
+    try {
+      parsed = JSON.parse(cleaned) as unknown[];
+    } catch (e) {
+      // 3. 解析失败：最后的杀手锏 - 使用正则强行提取所有像 {...} 的对象
+      // biome-ignore lint/suspicious/noExplicitAny: fallback extraction
+      const objects: any[] = [];
+      const objectMatches = cleaned.match(/\{[\s\S]*?\}/g);
+      if (objectMatches) {
+        for (const objStr of objectMatches) {
+          try {
+            // 尝试对单个对象进行简单的闭合修复后解析
+            let singleObj = objStr.trim();
+            const openC = (singleObj.match(/\{/g) || []).length;
+            const closeC = (singleObj.match(/\}/g) || []).length;
+            if (openC > closeC) singleObj += "}".repeat(openC - closeC);
+            objects.push(JSON.parse(singleObj));
+          } catch {
+            // 忽略单个无法解析的对象
+          }
+        }
+      }
+      if (objects.length > 0) {
+        parsed = objects;
+      } else {
+        return [];
+      }
+    }
+
     if (!Array.isArray(parsed)) return [];
 
     return parsed
-      .filter(
-        (item): item is { ymin: number; xmin: number; ymax: number; xmax: number } =>
+      .map((item: any) => {
+        // 1. 标准格式 {ymin, xmin, ymax, xmax}
+        if (
           typeof item === "object" &&
           item !== null &&
           "ymin" in item &&
-          typeof item.ymin === "number" &&
           "xmin" in item &&
-          typeof item.xmin === "number" &&
           "ymax" in item &&
-          typeof item.ymax === "number" &&
-          "xmax" in item &&
-          typeof item.xmax === "number",
-      )
-      .map((item) => ({
-        ymin: item.ymin,
-        xmin: item.xmin,
-        ymax: item.ymax,
-        xmax: item.xmax,
-      }));
+          "xmax" in item
+        ) {
+          return {
+            ymin: Number(item.ymin),
+            xmin: Number(item.xmin),
+            ymax: Number(item.ymax),
+            xmax: Number(item.xmax),
+          };
+        }
+        // 2. Qwen-VL 等常用格式 {bbox_2d: [y1, x1, y2, x2]}
+        if (
+          typeof item === "object" &&
+          item !== null &&
+          "bbox_2d" in item &&
+          Array.isArray(item.bbox_2d) &&
+          item.bbox_2d.length === 4
+        ) {
+          const [ymin, xmin, ymax, xmax] = item.bbox_2d;
+          return {
+            ymin: Number(ymin),
+            xmin: Number(xmin),
+            ymax: Number(ymax),
+            xmax: Number(xmax),
+          };
+        }
+        return null;
+      })
+      .filter((item): item is { ymin: number; xmin: number; ymax: number; xmax: number } => {
+        return (
+          item !== null &&
+          !Number.isNaN(item.ymin) &&
+          !Number.isNaN(item.xmin) &&
+          !Number.isNaN(item.ymax) &&
+          !Number.isNaN(item.xmax)
+        );
+      });
   } catch {
     return [];
   }

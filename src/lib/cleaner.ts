@@ -1,6 +1,6 @@
+import { DependencyManager } from "./deps-manager"; // Added import
 // import sharp from "sharp"; // Removed top-level import to prevent startup crash if missing
 import type { BoundingBox } from "./types";
-import { DependencyManager } from "./deps-manager"; // Added import
 
 /**
  * 使用 Sharp 在指定区域内清除彩色标记
@@ -15,7 +15,8 @@ export async function cleanMarkersLocal(
   }
 
   // Dynamic import sharp via DependencyManager
-  let sharp;
+  // biome-ignore lint/suspicious/noExplicitAny: sharp is dynamically loaded
+  let sharp: any;
   try {
     const sharpModule = await DependencyManager.getInstance().loadSharp();
     sharp = sharpModule.default || sharpModule;
@@ -177,7 +178,8 @@ export async function convertFormat(
   const ext = originalExt ? originalExt.toLowerCase() : "";
 
   // Dynamic import sharp via DependencyManager
-  let sharp;
+  // biome-ignore lint/suspicious/noExplicitAny: sharp is dynamically loaded
+  let sharp: any;
   try {
     const sharpModule = await DependencyManager.getInstance().loadSharp();
     sharp = sharpModule.default || sharpModule;

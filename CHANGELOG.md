@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0] - 2026-01-23
+
+**Experience Upgrade / 体验大幅升级**
+
+本次更新专注于用户体验的打磨与 Windows 平台的兼容性修复，为您带来更纯净、更智能的使用感受。
+
+### ✨ 新增特性 (New Features)
+
+- **🔄 智能断点续传 (Interactive Resume)**:
+  - 启动批量处理时自动检测历史进度，不再"无脑"从头开始。
+  - 新增交互界面：您可以选择 **[Enter] 继续处理** (跳过已完成) 或 **[R] 重新开始** (一键重置)。
+  - 彻底解决了"找不到待处理任务"的困惑。
+- **🧠 全方位模型兼容 (Model Ecosystem)**:
+  - 全面支持 OpenAI 兼容接口，实测已完美适配 **通义千问 Qwen3-VL-plus**。
+  - **核心黑科技**：内置 **JSON 破碎修复算法 (Smart Recovery)**。针对部分 AI 模型由于 Token 限制或回复话多导致的 JSON 截断、格式错误、未闭合括号等问题，系统实现了“死里逃生”级的正则抢救提取，识别成功率跃升。
+- **⚪️ 纯白主题重构 (Pure White Theme)**:
+  - 重新定义了 Light Mode 的配色方案，将背景强制锁定为 Hex `#FFFFFF`。
+  - 消除了各类终端 (iTerm2/Windows Terminal) 下可能出现的"灰色伪白"，提供如纸面般干净的视觉体验。
+
+### 🐛 问题修复 (Bug Fixes)
+
+- **🖼️ Web 报告体验**:
+  - 修复了“所有任务历史”下拉框无法切换的问题，现在当前任务会即时出现在导航中。
+  - 强制转换 Windows 路径分隔符为 Web 标准，确保报告链接在 PC 环境下不再失效。
+- **⌨️ 快捷键逻辑优化**:
+  - 完成页打开报告的快捷键由 `O` 升级为更契合直觉的 **[Enter]**。
+  - 增加了对 `0` (数字零) 误解的兼容处理。
+- **🪟 Windows 兼容性增强**:
+  - 修复了在老旧 Windows 控制台 (CMD/PowerShell) 中出现 OSC 乱码字符的问题。
+  - 智能识别 `Windows Terminal`，仅在支持的环境下发送高级颜色指令。
+- **🛠️ 依赖管理与稳定**:
+  - 优化了 `sharp` 模块的检测逻辑，提供更清晰的安装指引。
+  - 实现了 TUI 版本号与 `package.json` 的全自动同步。
+  - 修复了 `FileSelectorWithInput` 等组件中的 TS 类型定义与变量作用域问题。
+
+---
+
 ## [1.0.0] - 2026-01-22
 
 **Initial Release / 首次正式发布**

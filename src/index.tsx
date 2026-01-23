@@ -6,6 +6,7 @@ import Spinner from "ink-spinner";
 import TextInput from "ink-text-input";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
+import pkg from "../package.json";
 import { createProvider } from "./lib/ai";
 import { loginWithAntigravity } from "./lib/antigravity/auth";
 import { AntigravityProvider, type QuotaStatus } from "./lib/antigravity/provider";
@@ -14,15 +15,18 @@ import { DependencyManager, type PackageManager } from "./lib/deps-manager"; // 
 function isAntigravityProvider(provider: unknown): provider is AntigravityProvider {
   return provider instanceof AntigravityProvider;
 }
+import { ResumeCheckScreen, type ResumeState } from "./components/ResumeCheckScreen";
 import { BatchProcessor } from "./lib/batch-processor";
 import {
   type Config,
+  clearProgress,
   getDefaultConfig,
   loadConfig,
   resetConfig,
   saveConfig,
 } from "./lib/config-manager";
 import { createLogger } from "./lib/logger";
+import { getThemeColors } from "./lib/theme";
 import type { BatchTask } from "./lib/types";
 import { formatDuration, normalizePath, openPath, renderImageToTerminal } from "./lib/utils";
 
@@ -64,7 +68,7 @@ function useShortcuts(params: {
     }
 
     // 完成页快捷键
-    if (screen === "done" && lowerInput === "o" && canOpenReport) {
+    if (screen === "done" && key.return && canOpenReport) {
       onOpenReport?.();
     }
 
@@ -76,7 +80,9 @@ function useShortcuts(params: {
 
 // ============ 依赖检测 (Removed raw check, moved to component) ============
 
-type Screen = "menu" | "config" | "process" | "done" | "file-selection";
+type Screen = "menu" | "config" | "process" | "done" | "file-selection" | "resume-check";
+
+// ============ 恢复任务检查界面 (Moved to components/ResumeCheckScreen.tsx) ============
 
 // ============ 单文件选择界面 ============
 
@@ -85,6 +91,7 @@ interface FileSelectionScreenProps {
   onSelect: (path: string) => void;
   onCancel: () => void;
   onEditingChange?: (isEditing: boolean) => void;
+  isLight?: boolean;
 }
 
 const FileSelectionScreen: React.FC<FileSelectionScreenProps> = ({
@@ -92,6 +99,7 @@ const FileSelectionScreen: React.FC<FileSelectionScreenProps> = ({
   onSelect,
   onCancel,
   onEditingChange,
+  isLight,
 }) => {
   const [files, setFiles] = useState<{ label: string; value: string }[]>([]);
 
@@ -107,32 +115,41 @@ const FileSelectionScreen: React.FC<FileSelectionScreenProps> = ({
     } catch {}
   }, [inputDir]);
 
-  return (
-    <Box flexDirection="column" paddingX={2}>
-      <Text bold color="cyan">
-        🖼️ 单文件处理
-      </Text>
-      <Box marginBottom={1}>
-        <Text dimColor>请选择文件或输入路径 (Esc 返回)</Text>
-      </Box>
+  const { bg, accent, dim } = getThemeColors(!!isLight);
 
-      <FileSelectorWithInput
-        files={files.map((f) => f.label)}
-        value=""
-        onSelect={(file) => {
-          // 如果是列表选择的，file 是文件名。如果是手动输入的，可能是路径。
-          const found = files.find((f) => f.label === file);
-          if (found) {
-            onSelect(found.value);
-          } else {
-            // 手动输入处理
-            const fullPath = normalizePath(file, inputDir);
-            onSelect(fullPath);
-          }
-        }}
-        onCancel={onCancel}
-        onEditingChange={onEditingChange}
-      />
+  return (
+    <Box flexDirection="column" backgroundColor={bg}>
+      <Box paddingX={2} flexDirection="column" backgroundColor={bg}>
+        <Box marginBottom={1} backgroundColor={bg}>
+          <Text bold color={accent} backgroundColor={bg}>
+            🖼️ 单文件处理
+          </Text>
+        </Box>
+        <Box marginBottom={1} backgroundColor={bg}>
+          <Text color={dim} backgroundColor={bg}>
+            请选择文件或输入路径 (Esc 返回)
+          </Text>
+        </Box>
+
+        <FileSelectorWithInput
+          files={files.map((f) => f.label)}
+          value=""
+          onSelect={(file) => {
+            // 如果是列表选择的，file 是文件名。如果是手动输入的，可能是路径。
+            const found = files.find((f) => f.label === file);
+            if (found) {
+              onSelect(found.value);
+            } else {
+              // 手动输入处理
+              const fullPath = normalizePath(file, inputDir);
+              onSelect(fullPath);
+            }
+          }}
+          onCancel={onCancel}
+          onEditingChange={onEditingChange}
+          isLight={isLight}
+        />
+      </Box>
     </Box>
   );
 };
@@ -144,6 +161,7 @@ function FileSelectorWithInput(props: {
   onSelect: (file: string) => void;
   onCancel: () => void;
   onEditingChange?: (isEditing: boolean) => void;
+  isLight?: boolean;
 }) {
   const [mode, setMode] = useState<"list" | "manual">("list");
   const [manualPath, setManualPath] = useState(props.value);
@@ -161,6 +179,8 @@ function FileSelectorWithInput(props: {
     }
   });
 
+  const { dim, bg } = getThemeColors(!!props.isLight);
+
   return (
     <Box flexDirection="column">
       {mode === "list" ? (
@@ -169,9 +189,9 @@ function FileSelectorWithInput(props: {
           onSelect={(item) => props.onSelect(item.value)}
         />
       ) : (
-        <Box flexDirection="column">
-          <Box>
-            <Text>📁 手动输入路径: </Text>
+        <Box flexDirection="column" backgroundColor={bg}>
+          <Box backgroundColor={bg}>
+            <Text backgroundColor={bg}>📁 手动输入路径: </Text>
             <TextInput
               value={manualPath}
               onChange={setManualPath}
@@ -183,9 +203,13 @@ function FileSelectorWithInput(props: {
               }}
             />
           </Box>
-          <Box marginTop={1} flexDirection="column">
-            <Text dimColor>支持相对路径 (如 ./test.jpg) 或绝对路径</Text>
-            <Text dimColor>按 Enter 确认，按 Tab 切换回列表</Text>
+          <Box marginTop={1} flexDirection="column" backgroundColor={bg}>
+            <Text color={dim} backgroundColor={bg}>
+              支持相对路径 (如 ./test.jpg) 或绝对路径
+            </Text>
+            <Text color={dim} backgroundColor={bg}>
+              按 Enter 确认，按 Tab 切换回列表
+            </Text>
           </Box>
         </Box>
       )}
@@ -194,12 +218,12 @@ function FileSelectorWithInput(props: {
 }
 
 // Simple text-based progress bar component
-const FakeProgressBar = ({ percent }: { percent: number }) => {
+const FakeProgressBar = ({ percent, isLight }: { percent: number; isLight?: boolean }) => {
   const width = 30;
   const completed = Math.floor((width * percent) / 100);
   const remaining = width - completed;
   return (
-    <Text color="green">
+    <Text color={isLight ? "blue" : "green"}>
       {"["}
       {"█".repeat(completed)}
       {"░".repeat(remaining)}
@@ -214,621 +238,13 @@ interface MenuItem {
   icon?: string;
 }
 
-const App: React.FC = () => {
-  const { exit } = useApp();
-  const [screen, setScreen] = useState<Screen>("menu");
-  const [config, setConfig] = useState<Config>(() => loadConfig());
-  const [status, setStatus] = useState("");
-  const processorRef = useRef<BatchProcessor | null>(null);
-  const [progress, setProgress] = useState({ current: 0, total: 0, file: "" });
-  const [cost, setCost] = useState(0);
-  const [thumbnail, setThumbnail] = useState("");
-  const [lastStats, setLastStats] = useState<{
-    tokens?: { input: number; output: number };
-    duration?: number;
-  }>({});
-  const [error, setError] = useState("");
-  const [isGlobalEditing, setIsGlobalEditing] = useState(false);
-
-  // Global Theme State
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
-  const isLight = theme === "light";
-  const bg = isLight ? "white" : undefined;
-  const fg = isLight ? "black" : "white";
-  const dim = isLight ? "gray" : "dim";
-
-  // Change terminal background color using OSC sequences
-  useEffect(() => {
-    if (isLight) {
-      // Set Default Background to White, Foreground to Black
-      process.stdout.write("\x1b]11;#ffffff\x07");
-      process.stdout.write("\x1b]10;#000000\x07");
-    } else {
-      // Reset to typically dark defaults (Dark Gray bg, Light Gray fg)
-      // Note: We can't easily know user's original preferred color, so we set a safe dark theme.
-      process.stdout.write("\x1b]11;#0c0c0c\x07");
-      process.stdout.write("\x1b]10;#cccccc\x07");
-    }
-  }, [isLight]);
-
-  // Sharp Dependency State
-  const [sharpMissing, setSharpMissing] = useState(false);
-  const [installingSharp, setInstallingSharp] = useState(false);
-  const [pkgManager, setPkgManager] = useState<PackageManager>(null);
-  const [installLog, setInstallLog] = useState("");
-  const [installProgress, setInstallProgress] = useState(0);
-
-  useEffect(() => {
-    const deps = DependencyManager.getInstance();
-    deps.checkSharp().then((available) => {
-      setSharpMissing(!available);
-      if (!available) {
-        setPkgManager(deps.detectPackageManager());
-      }
-    });
-  }, []);
-
-  const handleInstallSharp = async () => {
-    if (installingSharp) return;
-    setInstallingSharp(true);
-    setInstallProgress(0);
-    setInstallLog("Initializing...");
-    setStatus("📦 正在安装依赖 sharp...");
-
-    // fake progress simulation
-    const timer = setInterval(() => {
-      setInstallProgress((p) => {
-        if (p >= 90) return p;
-        return p + Math.floor(Math.random() * 5);
-      });
-    }, 500);
-
-    try {
-      await DependencyManager.getInstance().installSharp((msg) => {
-        setInstallLog(msg);
-      });
-      clearInterval(timer);
-      setInstallProgress(100);
-      setSharpMissing(false);
-      setStatus("✅ 依赖安装成功！请尽情使用！");
-    } catch (err) {
-      clearInterval(timer);
-      setError(`安装失败: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setInstallingSharp(false);
-    }
-  };
-
-  const [reportPath, setReportPath] = useState<string | undefined>();
-  const [sessionStats, setSessionStats] = useState<{
-    success: number;
-    failed: number;
-    cost: number;
-    tokens: { input: number; output: number };
-  }>({ success: 0, failed: 0, cost: 0, tokens: { input: 0, output: 0 } });
-
-  const menuItems: MenuItem[] = [
-    { label: "🚀 批量处理", value: "start", icon: "🚀" },
-    { label: "🖼️  单文件处理", value: "single", icon: "🖼️" },
-    { label: "⚙️  配置设置", value: "settings", icon: "⚙️" },
-    { label: " 退出", value: "exit", icon: "🚪" },
-  ];
-
-  const handleMenuSelect = async (item: MenuItem) => {
-    switch (item.value) {
-      case "start":
-        setScreen("process");
-        await runProcess(false);
-        break;
-      case "single":
-        setScreen("file-selection");
-        break;
-      case "settings":
-        setScreen("config");
-        break;
-      case "exit":
-        exit();
-        setTimeout(() => process.exit(0), 100); // 强制退出以避免挂起
-        break;
-    }
-  };
-
-  const runProcess = async (previewOnly: boolean, singleFilePath?: string) => {
-    try {
-      const hasToken = tokenPool.getCount() > 0;
-      const isAntigravity = config.provider === "antigravity";
-
-      if (!isAntigravity && !config.apiKey) {
-        setError("❌ 请先配置 API Key");
-        setScreen("menu");
-        return;
-      }
-
-      if (isAntigravity && !hasToken) {
-        setError("❌ 请先登录 Antigravity 账号 (配置页按 'L')");
-        setScreen("menu");
-        return;
-      }
-
-      const logger = createLogger(config.debugLog);
-      const provider = createProvider(config);
-      const processor = new BatchProcessor({
-        config,
-        provider,
-        logger,
-        onProgress: (current, total, file, stats) => {
-          setProgress({ current, total, file });
-          if (!stats) {
-            setLastStats({});
-            setThumbnail("");
-            return;
-          }
-          if (stats.lastTaskTokens || stats.lastTaskDuration) {
-            setLastStats({ tokens: stats.lastTaskTokens, duration: stats.lastTaskDuration });
-          }
-          if (stats.lastTaskThumbnail) {
-            setThumbnail(renderImageToTerminal(stats.lastTaskThumbnail));
-          }
-        },
-        onCostUpdate: (newCost) => {
-          setCost(newCost);
-        },
-      });
-      processorRef.current = processor;
-
-      let pendingTasks: BatchTask[] = [];
-      if (singleFilePath) {
-        const absPath = normalizePath(singleFilePath, process.cwd());
-        if (!absPath) throw new Error("未指定输入路径");
-        if (!existsSync(absPath)) throw new Error(`文件不存在: ${absPath}`);
-
-        pendingTasks = [
-          {
-            absoluteInputPath: absPath,
-            absoluteOutputPath: join(
-              config.outputDir,
-              `${basename(absPath, extname(absPath))}${config.renameRules.suffix}${extname(absPath)}`,
-            ),
-            relativePath: basename(absPath),
-          },
-        ];
-      } else {
-        const allTasks = processor.scanTasks();
-        pendingTasks = processor.filterPendingTasks(allTasks);
-      }
-
-      setStatus(
-        singleFilePath
-          ? `正在处理单个文件: ${basename(singleFilePath)}`
-          : `找到 ${pendingTasks.length} 个任务`,
-      );
-
-      const result = await processor.process(pendingTasks, previewOnly, !!singleFilePath);
-
-      setReportPath(result.reportPath);
-      setSessionStats({
-        success: result.totalSuccess,
-        failed: result.totalFailed,
-        cost: result.totalCost,
-        tokens: result.totalTokens,
-      });
-
-      setScreen("done");
-
-      if (result.reportPath) {
-        openPath(result.reportPath).catch((err) => {
-          logger.warn(`自动打开报告失败: ${err}`);
-        });
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setScreen("menu");
-    }
-  };
-
-  useShortcuts({
-    screen,
-    onExit: exit,
-    onNavigate: (target) => {
-      // 停止处理器
-      if (screen === "process" && target === "menu") {
-        processorRef.current?.stop();
-      }
-      setScreen(target);
-    },
-    onSelectMenu: (idx) => {
-      const item = menuItems[idx];
-      if (item) handleMenuSelect(item);
-    },
-    onOpenReport: () => {
-      if (reportPath) openPath(reportPath);
-    },
-    canOpenReport: !!reportPath,
-    isEditing: isGlobalEditing,
-  });
-
-  // Global key listener for 'i' install and 't' theme toggle
-  useInput((input, key) => {
-    const char = input.toLowerCase();
-    if (screen === "menu" && sharpMissing && !installingSharp && pkgManager && char === "i") {
-      handleInstallSharp();
-    }
-    if (char === "t" && !isGlobalEditing) {
-      setTheme((prev) => (prev === "light" ? "dark" : "light"));
-    }
-  });
-
-  return (
-    <Box
-      flexDirection="column"
-      padding={1}
-      width="100%"
-      height="100%"
-      minHeight="100%"
-      backgroundColor={bg}
-    >
-      {/* 标题区域 - 真正旗舰级 Block Logo */}
-      <Box flexDirection="column" marginBottom={1}>
-        {/* MARKER */}
-        <Text>
-          <Text color={isLight ? "black" : "white"} bold>
-            ███╗ ███╗ █████╗ ██████╗ ██╗ ██╗███████╗██████╗
-          </Text>
-        </Text>
-        <Text>
-          <Text color={isLight ? "black" : "white"} bold>
-            ████╗ ████║██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗
-          </Text>
-        </Text>
-        <Text>
-          <Text color={isLight ? "blue" : "cyan"} bold>
-            ██╔████╔██║███████║██████╔╝█████╔╝ █████╗ ██████╔╝
-          </Text>
-        </Text>
-        <Text>
-          <Text color={isLight ? "blue" : "cyan"} bold>
-            ██║╚██╔╝██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝ ██╔══██╗
-          </Text>
-        </Text>
-        <Text>
-          <Text color="blue" bold>
-            ██║ ╚═╝ ██║██║ ██║██║ ██║██║ ██╗███████╗██║ ██║
-          </Text>
-        </Text>
-        <Text>
-          <Text color="blue" bold>
-            ╚═╝ ╚═╝╚═╝ ╚═╝╚═╝ ╚═╝╚═╝ ╚═╝╚══════╝╚═╝ ╚═╝
-          </Text>
-        </Text>
-
-        <Text> </Text>
-
-        {/* CLEANER */}
-        <Text>
-          <Text color={isLight ? "blue" : "cyan"} bold>
-            {" "}
-            ██████╗██╗ ███████╗ █████╗ ███╗ ██╗███████╗██████╗{" "}
-          </Text>
-        </Text>
-        <Text>
-          <Text color={isLight ? "blue" : "cyan"} bold>
-            ██╔════╝██║ ██╔════╝██╔══██╗████╗ ██║██╔════╝██╔══██╗
-          </Text>
-        </Text>
-        <Text>
-          <Text color="green" bold>
-            ██║ ██║ █████╗ ███████║██╔██╗ ██║█████╗ ██████╔╝
-          </Text>
-        </Text>
-        <Text>
-          <Text color="green" bold>
-            ██║ ██║ ██╔══╝ ██╔══██║██║╚██╗██║██╔══╝ ██╔══██╗
-          </Text>
-        </Text>
-        <Text>
-          <Text color={isLight ? "magenta" : "yellow"} bold>
-            ╚██████╗███████╗███████╗██║ ██║██║ ╚████║███████╗██║ ██║
-          </Text>
-        </Text>
-        <Text>
-          <Text color={isLight ? "magenta" : "yellow"} bold>
-            {" "}
-            ╚═════╝╚══════╝╚══════╝╚═╝ ╚═╝╚═╝ ╚═══╝╚══════╝╚═╝ ╚═╝
-          </Text>
-          <Text color={isLight ? "black" : "yellow"} bold>
-            {" "}
-            v1.0.0
-          </Text>
-        </Text>
-
-        <Text> </Text>
-        <Text>
-          <Text color={dim} dimColor={!isLight}>
-            {" "}
-            🧹 Professional AI Image Restorer & Cleaner Tool{" "}
-          </Text>
-        </Text>
-      </Box>
-      {/* 当前配置仪表盘 */}
-      <Box marginBottom={1} flexDirection="column">
-        <Text dimColor>─────────── 当前配置 ───────────</Text>
-        <Box marginTop={0}>
-          <Box borderStyle="round" borderColor="magenta" paddingX={1} marginRight={1}>
-            <Text color="magenta" bold>
-              ⚡ {config.provider.toUpperCase()}
-            </Text>
-          </Box>
-          <Box borderStyle="round" borderColor="blue" paddingX={1} marginRight={1}>
-            <Text color="blue">🤖 {config.modelName}</Text>
-          </Box>
-          <Box
-            borderStyle="round"
-            borderColor={config.modelName.toLowerCase().includes("image") ? "green" : "yellow"}
-            paddingX={1}
-          >
-            <Text
-              color={config.modelName.toLowerCase().includes("image") ? "green" : "yellow"}
-              bold
-            >
-              {config.modelName.toLowerCase().includes("image")
-                ? "🎨 Native Mode"
-                : "⚡ Detection Mode"}
-            </Text>
-          </Box>
-        </Box>
-      </Box>
-
-      {/* 错误展示 */}
-      {error && (
-        <Box marginBottom={1}>
-          <Text color="red" bold>
-            ✘ {error}
-          </Text>
-        </Box>
-      )}
-
-      {/* 状态栏 */}
-      {status && (
-        <Box marginBottom={1} paddingX={1}>
-          <Text color="yellow" italic>
-            ✨ {status}
-          </Text>
-        </Box>
-      )}
-
-      {/* Sharp 依赖缺失警告 */}
-      {screen === "menu" && sharpMissing && (
-        <Box
-          marginBottom={1}
-          borderStyle="round"
-          borderColor="yellow"
-          flexDirection="column"
-          paddingX={1}
-        >
-          <Text color="yellow" bold>
-            ⚠️ 检测到缺少依赖: sharp
-          </Text>
-          <Text color="yellow">本地模式 (Detection Mode) 需要 sharp 模块。</Text>
-
-          {installingSharp ? (
-            <Box marginTop={1} flexDirection="column">
-              <Text color="cyan">
-                <Spinner type="dots" /> 正在自动安装 sharp...
-              </Text>
-              <Box marginTop={0}>
-                <FakeProgressBar percent={installProgress} />
-              </Box>
-              <Text dimColor>{installLog}</Text>
-            </Box>
-          ) : pkgManager ? (
-            <Box marginTop={1} flexDirection="column">
-              <Text>检测到您已安装 {pkgManager}。</Text>
-              <Text color="green" bold>
-                💡 按 'I' 键自动安装
-              </Text>
-              {DependencyManager.getInstance().lastError && (
-                <Box marginTop={1} borderStyle="single" borderColor="red" paddingX={1}>
-                  <Text color="red">Debug: {DependencyManager.getInstance().lastError}</Text>
-                </Box>
-              )}
-              {DependencyManager.getInstance().debugInfo && (
-                <Text dimColor>Path: {DependencyManager.getInstance().debugInfo}</Text>
-              )}
-            </Box>
-          ) : (
-            <Box marginTop={1} flexDirection="column">
-              <Text color="red">未检测到 Node.js 环境 (npm/bun)。</Text>
-              <Text>请先安装 Node.js，然后在同级目录运行: npm install sharp</Text>
-            </Box>
-          )}
-        </Box>
-      )}
-
-      {/* 配置缺失警告 */}
-      {screen === "menu" &&
-        (() => {
-          const hasToken = tokenPool.getCount() > 0;
-          const needsGoogleKey = !config.apiKey && config.provider === "google";
-          const needsOpenAIKey = !config.apiKey && config.provider === "openai";
-          const needsAntigravityLogin = config.provider === "antigravity" && !hasToken;
-
-          if (needsGoogleKey || needsOpenAIKey || needsAntigravityLogin) {
-            const providerLabel =
-              config.provider === "google" ? "Google Gemini API" : config.provider;
-            return (
-              <Box
-                marginBottom={1}
-                borderStyle="round"
-                borderColor="red"
-                flexDirection="column"
-                paddingX={1}
-              >
-                <Text color="red" bold>
-                  ⚠️ 服务未就绪
-                </Text>
-                {needsAntigravityLogin ? (
-                  <Text color="red">请进入 "⚙️ 配置设置" 按 'L' 键登录 Antigravity 账号。</Text>
-                ) : (
-                  <>
-                    <Text color="red">当前 {providerLabel} 未配置 API Key。</Text>
-                    {hasToken ? (
-                      <Text color="cyan" bold>
-                        💡 检测到您已登录 Antigravity，请在配置中切换 Provider 即可直接使用！
-                      </Text>
-                    ) : (
-                      <Text color="red" dimColor>
-                        提示: 您也可以切换 Provider 为 "antigravity" 使用集成登录。
-                      </Text>
-                    )}
-                  </>
-                )}
-              </Box>
-            );
-          }
-          return null;
-        })()}
-
-      {/* 主内容 */}
-      {screen === "menu" && (
-        <Box flexDirection="column">
-          <Box marginBottom={1}>
-            <Text bold>请选择操作:</Text>
-          </Box>
-          <SelectInput items={menuItems} onSelect={handleMenuSelect} />
-        </Box>
-      )}
-
-      {screen === "config" && (
-        <ConfigScreen
-          config={config}
-          onSave={(newConfig) => {
-            saveConfig(newConfig);
-            setConfig(newConfig);
-            setStatus("✅ 配置已保存");
-            setScreen("menu");
-            setIsGlobalEditing(false); // 重置状态
-          }}
-          onCancel={() => {
-            setScreen("menu");
-            setIsGlobalEditing(false); // 重置状态
-          }}
-          onEditingChange={setIsGlobalEditing}
-          logger={createLogger(config.debugLog)}
-        />
-      )}
-
-      {screen === "file-selection" && (
-        <FileSelectionScreen
-          inputDir={config.inputDir}
-          onSelect={(path) => {
-            setScreen("process");
-            runProcess(false, path);
-            setIsGlobalEditing(false); // 重置状态
-          }}
-          onCancel={() => {
-            setScreen("menu");
-            setIsGlobalEditing(false); // 重置状态
-          }}
-          onEditingChange={setIsGlobalEditing}
-        />
-      )}
-
-      {screen === "process" && (
-        <Box flexDirection="column">
-          <Box>
-            <Text color="green">
-              <Spinner type="dots" />
-            </Text>
-            <Text> 正在处理 ... (按 'Q' 终止)</Text>
-          </Box>
-          {progress.total > 0 && (
-            <Box marginTop={1} flexDirection="column">
-              <Text>
-                进度: {progress.current}/{progress.total}
-              </Text>
-              <Text dimColor>当前: {progress.file}</Text>
-
-              {thumbnail && (
-                <Box borderStyle="single" borderColor="gray" paddingX={1} marginBottom={0}>
-                  <Text>{thumbnail}</Text>
-                </Box>
-              )}
-
-              {lastStats.tokens && (
-                <Text color="cyan">
-                  ⚡ 上个任务: {lastStats.tokens.input + lastStats.tokens.output} tokens (
-                  {lastStats.tokens.input} 输入 / {lastStats.tokens.output} 输出)
-                </Text>
-              )}
-              {lastStats.duration !== undefined && (
-                <Text color="gray">⏱️ 耗时: {formatDuration(lastStats.duration)}</Text>
-              )}
-              <Box marginTop={1}>
-                <Text color="yellow">💰 累计成本: ${cost.toFixed(4)}</Text>
-                {config.budgetLimit > 0 && <Text dimColor> (上限: ${config.budgetLimit})</Text>}
-              </Box>
-            </Box>
-          )}
-        </Box>
-      )}
-
-      {screen === "done" && (
-        <Box flexDirection="column" borderStyle="round" borderColor="green" paddingX={2}>
-          <Text color="green" bold>
-            ✅ 批处理任务完成!
-          </Text>
-          <Box flexDirection="column" marginTop={1}>
-            <Text>
-              • 成功: <Text color="green">{sessionStats.success}</Text> 个
-            </Text>
-            <Text>
-              • 失败: <Text color="red">{sessionStats.failed}</Text> 个
-            </Text>
-            <Text>
-              • 耗能:{" "}
-              <Text color="cyan">{sessionStats.tokens.input + sessionStats.tokens.output}</Text>{" "}
-              Tokens
-            </Text>
-            <Text>
-              • 本次成本: <Text color="yellow">${sessionStats.cost.toFixed(4)}</Text>
-            </Text>
-          </Box>
-          <Box marginTop={1} flexDirection="column">
-            <Text dimColor>按 </Text>
-            <Box>
-              <Text bold color="magenta">
-                {" "}
-                O{" "}
-              </Text>
-              <Text dimColor> 键打开 HTML 处理报告</Text>
-            </Box>
-            <Text dimColor>按 Esc 返回主菜单</Text>
-          </Box>
-        </Box>
-      )}
-
-      {/* 底部导航 */}
-      <Box marginTop={1} borderStyle="classic" borderColor="gray" paddingX={1}>
-        <Text dimColor>快捷键: </Text>
-        <Text color="cyan">↑↓</Text>
-        <Text dimColor> 导航 | </Text>
-        <Text color="cyan">Enter</Text>
-        <Text dimColor> 选择 | </Text>
-        <Text color="cyan">Q</Text>
-        <Text dimColor> 退出</Text>
-      </Box>
-    </Box>
-  );
-};
-
-// 简化的配置界面
-
 interface ConfigScreenProps {
   config: Config;
   onSave: (config: Config) => void;
   onCancel: () => void;
   onEditingChange?: (isEditing: boolean) => void;
   logger: ReturnType<typeof createLogger>;
+  isLight?: boolean;
 }
 
 interface ConfigField {
@@ -875,6 +291,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
   onCancel,
   onEditingChange,
   logger,
+  isLight,
 }) => {
   const [editConfig, setEditConfig] = useState<Config>({ ...config });
   const [isEditing, setIsEditing] = useState(false);
@@ -888,6 +305,8 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
   useEffect(() => {
     onEditingChange?.(isEditing);
   }, [isEditing, onEditingChange]);
+
+  const { bg, fg, dim, accent, warning, danger, success } = getThemeColors(!!isLight);
 
   useEffect(() => {
     if (editConfig.provider === "antigravity" && authState) {
@@ -1133,41 +552,50 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
       {editConfig.provider === "antigravity" && (
         <Box
           borderStyle="round"
-          borderColor={tokenPool.getCount() > 0 ? "green" : "red"}
+          borderColor={tokenPool.getCount() > 0 ? success : danger}
           flexDirection="column"
           marginBottom={1}
           paddingX={1}
+          backgroundColor={bg}
         >
-          <Box justifyContent="space-between">
-            <Text bold color={tokenPool.getCount() > 0 ? "green" : "red"}>
+          <Box justifyContent="space-between" backgroundColor={bg}>
+            <Text bold color={tokenPool.getCount() > 0 ? success : danger} backgroundColor={bg}>
               Antigravity Pool Status: {tokenPool.getCount() > 0 ? "在线" : "未连接"}
             </Text>
-            <Text color="cyan">(按 'L' 添加新账号/刷新)</Text>
+            <Text color={accent} backgroundColor={bg}>
+              (按 'L' 刷新账号)
+            </Text>
           </Box>
 
-          <Box marginTop={1} flexDirection="column">
+          <Box marginTop={1} flexDirection="column" backgroundColor={bg}>
             {tokenPool.getTokens().length === 0 ? (
-              <Text color="yellow">暂无关联账号。请按 'L' 添加 Google 账号以构建算力池。</Text>
+              <Text color={warning} backgroundColor={bg}>
+                暂无关联账号。请按 'L' 登录以构建算力池。
+              </Text>
             ) : (
               tokenPool.getTokens().map((t, idx) => (
-                <Box key={t.email || idx} flexDirection="row" justifyContent="space-between">
-                  <Text>👤 {t.email || "Unknown User"}</Text>
-                  <Text dimColor> | Project: {t.project_id || "N/A"}</Text>
-                  {/* Future: Show individual quota if we fetch it per user */}
+                <Box
+                  key={t.email || idx}
+                  flexDirection="row"
+                  justifyContent="space-between"
+                  backgroundColor={bg}
+                >
+                  <Text color={fg} backgroundColor={bg}>
+                    👤 {t.email || "Unknown User"}
+                  </Text>
+                  <Text color={dim} backgroundColor={bg}>
+                    {" "}
+                    | {t.project_id || "N/A"}
+                  </Text>
                 </Box>
               ))
             )}
           </Box>
 
-          {/* Quota display - Maybe aggregating or showing just a summary that 'Pool is Ready' */}
-          {/* Since getQuota() currently fetches for *a* token, we might want to update it to fetch for *all* or just one representative. 
-              For now, let's keep the single quota display if available, but maybe hide it if it's confusing, 
-              or try to show "Combined Quota" concept later. 
-              Actually, let's simply show the count of accounts as the primary "Resource" indicator. 
-          */}
-
-          <Box marginTop={1}>
-            <Text color="gray">{loginMsg}</Text>
+          <Box marginTop={1} backgroundColor={bg}>
+            <Text color={dim} backgroundColor={bg}>
+              {loginMsg}
+            </Text>
           </Box>
         </Box>
       )}
@@ -1179,7 +607,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
 
         if (field.key === "provider") {
           if (value === "google") displayValue = "Google Gemini API";
-          else if (value === "openai") displayValue = "OpenAI (需 GPT-4o)";
+          else if (value === "openai") displayValue = "OpenAI 兼容接口";
           else if (value === "antigravity") displayValue = "Antigravity (集成登录)";
         }
 
@@ -1192,13 +620,16 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
         if (field.key === "modelName" && isFocused) {
           const isNative = String(value).toLowerCase().includes("image");
           hintComponent = (
-            <Box marginLeft={2} flexDirection="column">
-              <Text color={isNative ? "green" : "cyan"} dimColor>
+            <Box marginLeft={2} flexDirection="column" backgroundColor={bg}>
+              <Text
+                color={isNative ? (isLight ? "green" : "green") : isLight ? "blue" : "cyan"}
+                backgroundColor={bg}
+              >
                 {isNative
                   ? "🎨 Native Mode: 使用图像生成模型 (如 Gemini Image) 直接重绘修复区域"
                   : "⚡ Detection Mode: 使用视觉模型定位标记 + 本地算法修复 (更快更省钱)"}
               </Text>
-              <Text dimColor color="gray">
+              <Text color={isLight ? "black" : "gray"} backgroundColor={bg}>
                 {isNative
                   ? "   适合复杂背景 / 高质量需求 / Token 消耗较高"
                   : "   适合纯色/简单背景 / 批量处理 / Token 消耗极低"}
@@ -1220,8 +651,8 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
           displayValue = "(未设置)";
         }
 
-        if (field.type === "text" && !isEditing && displayValue.length > 40) {
-          displayValue = `${displayValue.slice(0, 37)}...`;
+        if (field.type === "text" && !isEditing && !isFocused && displayValue.length > 100) {
+          displayValue = `${displayValue.slice(0, 97)}...`;
         }
 
         let valComponent: React.ReactNode;
@@ -1236,11 +667,13 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
             );
           } else {
             valComponent = (
-              <Text color="yellow">
+              <Text color={isLight ? "magenta" : "yellow"}>
                 {getNestedValue(editConfig, field.key)
                   ? "*".repeat(String(getNestedValue(editConfig, field.key)).length)
                   : editConfig.provider === "antigravity"
-                    ? "(通过‘L’键登录自动获取)"
+                    ? isLight
+                      ? "(通过‘L’键登录自动获取)"
+                      : "(通过‘L’键登录自动获取)"
                     : "(未设置)"}
               </Text>
             );
@@ -1248,9 +681,15 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
         } else if (field.type === "select") {
           const isProvider = field.key === "provider";
           valComponent = (
-            <Text bold={isProvider} color={isProvider ? "magenta" : isFocused ? "cyan" : undefined}>
-              {displayValue}
-            </Text>
+            <Box backgroundColor={bg}>
+              <Text
+                bold={isProvider}
+                color={isFocused ? accent : isProvider ? (isLight ? "blue" : "magenta") : undefined}
+                backgroundColor={bg}
+              >
+                {displayValue}
+              </Text>
+            </Box>
           );
         } else {
           if (isFocused && isEditing) {
@@ -1285,17 +724,18 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
               />
             );
           } else {
-            valComponent = <Text color={isFocused ? "cyan" : undefined}>{displayValue}</Text>;
+            valComponent = (
+              <Text color={isFocused ? (isLight ? "blue" : "cyan") : undefined}>
+                {displayValue}
+              </Text>
+            );
           }
         }
 
         // 根据字段类型决定 Label 颜色
         const getFieldLabelColor = () => {
-          if (field.advanced) return "gray";
-          if (field.key === "provider" || field.key === "modelName") return "magenta";
-          if (field.key.includes("Dir")) return "blue";
-          if (field.type === "boolean") return "yellow";
-          return "cyan";
+          if (field.advanced) return dim;
+          return fg;
         };
 
         return (
@@ -1316,33 +756,861 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
       <Box
         marginTop={2}
         flexDirection="column"
-        borderStyle="classic"
-        borderColor="gray"
-        paddingX={1}
+        borderStyle="round"
+        borderColor={isLight ? "black" : "gray"}
+        backgroundColor={bg}
       >
-        <Box>
-          <Text dimColor>快捷键: </Text>
-          <Text color="cyan">Esc</Text>
-          <Text dimColor> 返回 | </Text>
-          <Text color="cyan">↑↓</Text>
-          <Text dimColor> 导航 | </Text>
-          <Text color="cyan">Enter</Text>
-          <Text dimColor> 确认/编辑</Text>
+        <Box paddingX={1} flexDirection="column" backgroundColor={bg}>
+          <Box backgroundColor={bg}>
+            <Text color={dim} backgroundColor={bg}>
+              快捷键:{" "}
+            </Text>
+            <Text color={accent} backgroundColor={bg}>
+              Esc
+            </Text>
+            <Text color={dim} backgroundColor={bg}>
+              {" "}
+              返回 |{" "}
+            </Text>
+            <Text color={accent} backgroundColor={bg}>
+              ↑↓
+            </Text>
+            <Text color={dim} backgroundColor={bg}>
+              {" "}
+              导航 |{" "}
+            </Text>
+            <Text color={accent} backgroundColor={bg}>
+              Enter
+            </Text>
+            <Text color={dim} backgroundColor={bg}>
+              {" "}
+              确认/编辑
+            </Text>
+          </Box>
+          <Box marginTop={0} backgroundColor={bg}>
+            <Text color={accent} backgroundColor={bg}>
+              {" "}
+              S{" "}
+            </Text>
+            <Text color={dim} backgroundColor={bg}>
+              保存配置 |{" "}
+            </Text>
+            <Text color={accent} backgroundColor={bg}>
+              {" "}
+              A{" "}
+            </Text>
+            <Text color={dim} backgroundColor={bg}>
+              {showAdvanced ? "折叠" : "展开"}高级 |{" "}
+            </Text>
+            <Text color={accent} backgroundColor={bg}>
+              {" "}
+              D{" "}
+            </Text>
+            <Text color={dim} backgroundColor={bg}>
+              恢复默认
+            </Text>
+            {editConfig.provider === "antigravity" && (
+              <>
+                <Text color={dim} backgroundColor={bg}>
+                  {" "}
+                  |{" "}
+                </Text>
+                <Text color={accent} backgroundColor={bg}>
+                  {" "}
+                  L{" "}
+                </Text>
+                <Text color={dim} backgroundColor={bg}>
+                  添加账号/刷新
+                </Text>
+              </>
+            )}
+          </Box>
         </Box>
-        <Box marginTop={1}>
-          <Text color="magenta"> S </Text>
-          <Text dimColor>保存配置 | </Text>
-          <Text color="magenta"> A </Text>
-          <Text dimColor>{showAdvanced ? "折叠" : "展开"}高级 | </Text>
-          <Text color="magenta"> D </Text>
-          <Text dimColor>恢复默认</Text>
-          {editConfig.provider === "antigravity" && (
-            <>
-              <Text dimColor> | </Text>
-              <Text color="magenta"> L </Text>
-              <Text dimColor>添加账号/刷新</Text>
-            </>
+      </Box>
+    </Box>
+  );
+};
+
+const App: React.FC = () => {
+  const { exit } = useApp();
+  const [screen, setScreen] = useState<Screen>("menu");
+  const [config, setConfig] = useState<Config>(() => loadConfig());
+  const [status, setStatus] = useState("");
+  const processorRef = useRef<BatchProcessor | null>(null);
+  const [resumeState, setResumeState] = useState<ResumeState | null>(null);
+  const [progress, setProgress] = useState({ current: 0, total: 0, file: "" });
+  const [cost, setCost] = useState(0);
+  const [thumbnail, setThumbnail] = useState("");
+  const [lastStats, setLastStats] = useState<{
+    tokens?: { input: number; output: number };
+    duration?: number;
+  }>({});
+  const [error, setError] = useState("");
+  const [isGlobalEditing, setIsGlobalEditing] = useState(false);
+
+  // Global Theme State
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const isLight = theme === "light";
+  const { bg, fg, dim, accent, warning, danger, success } = getThemeColors(isLight);
+
+  // Change terminal background color using OSC sequences
+  useEffect(() => {
+    // Check if we can safely use OSC sequences
+    const isWindows = process.platform === "win32";
+    // Windows Terminal defines WT_SESSION
+    const isCompatibleTerminal = !isWindows || process.env.WT_SESSION;
+
+    if (process.stdout.isTTY && isCompatibleTerminal) {
+      if (isLight) {
+        // Set Default Background to White, Foreground to Black
+        process.stdout.write("\x1b]11;#ffffff\x07");
+        process.stdout.write("\x1b]10;#000000\x07");
+      } else {
+        // Reset to typically dark defaults
+        process.stdout.write("\x1b]11;#0c0c0c\x07");
+        process.stdout.write("\x1b]10;#cccccc\x07");
+      }
+    }
+  }, [isLight]);
+
+  // Sharp Dependency State
+  const [sharpMissing, setSharpMissing] = useState(false);
+  const [installingSharp, setInstallingSharp] = useState(false);
+  const [pkgManager, setPkgManager] = useState<PackageManager>(null);
+  const [installLog, setInstallLog] = useState("");
+  const [installProgress, setInstallProgress] = useState(0);
+
+  useEffect(() => {
+    const deps = DependencyManager.getInstance();
+    deps.checkSharp().then((available) => {
+      setSharpMissing(!available);
+      if (!available) {
+        setPkgManager(deps.detectPackageManager());
+      }
+    });
+  }, []);
+
+  const handleInstallSharp = async () => {
+    if (installingSharp) return;
+    setInstallingSharp(true);
+    setInstallProgress(0);
+    setInstallLog("Initializing...");
+    setStatus("📦 正在安装依赖 sharp...");
+
+    // fake progress simulation
+    const timer = setInterval(() => {
+      setInstallProgress((p) => {
+        if (p >= 90) return p;
+        return p + Math.floor(Math.random() * 5);
+      });
+    }, 500);
+
+    try {
+      await DependencyManager.getInstance().installSharp((msg) => {
+        setInstallLog(msg);
+      });
+      clearInterval(timer);
+      setInstallProgress(100);
+      setSharpMissing(false);
+      setStatus("✅ 依赖安装成功！请尽情使用！");
+    } catch (err) {
+      clearInterval(timer);
+      setError(`安装失败: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setInstallingSharp(false);
+    }
+  };
+
+  const [reportPath, setReportPath] = useState<string | undefined>();
+  const [sessionStats, setSessionStats] = useState<{
+    success: number;
+    failed: number;
+    cost: number;
+    tokens: { input: number; output: number };
+  }>({ success: 0, failed: 0, cost: 0, tokens: { input: 0, output: 0 } });
+
+  const menuItems: MenuItem[] = [
+    { label: "🚀 批量处理", value: "start", icon: "🚀" },
+    { label: "🖼️  单文件处理", value: "single", icon: "🖼️" },
+    { label: "⚙️  配置设置", value: "settings", icon: "⚙️" },
+    { label: " 退出", value: "exit", icon: "🚪" },
+  ];
+
+  const handleMenuSelect = async (item: MenuItem) => {
+    switch (item.value) {
+      case "start":
+        setScreen("process");
+        await runProcess(false);
+        break;
+      case "single":
+        setScreen("file-selection");
+        break;
+      case "settings":
+        setScreen("config");
+        break;
+      case "exit":
+        exit();
+        setTimeout(() => process.exit(0), 100); // 强制退出以避免挂起
+        break;
+    }
+  };
+
+  const executeBatch = async (
+    tasksToRun: BatchTask[],
+    previewOnly: boolean,
+    singleFilePath?: string,
+    reportPathFromPrevious?: string,
+  ) => {
+    try {
+      const processor = processorRef.current;
+      if (!processor) return;
+
+      const logger = createLogger(config.debugLog);
+
+      setScreen("process");
+
+      const result = await processor.process(tasksToRun, previewOnly, !!singleFilePath);
+
+      setReportPath(result.reportPath);
+      setSessionStats({
+        success: result.totalSuccess,
+        failed: result.totalFailed,
+        cost: result.totalCost,
+        tokens: result.totalTokens,
+      });
+
+      setScreen("done");
+
+      if (result.reportPath) {
+        openPath(result.reportPath).catch((err) => {
+          logger.warn(`自动打开报告失败: ${err}`);
+        });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setScreen("menu");
+    }
+  };
+
+  const runProcess = async (previewOnly = false, singleFilePath?: string) => {
+    try {
+      setError("");
+      setStatus("");
+      setProgress({ current: 0, total: 0, file: "" });
+      setLastStats({});
+      setThumbnail("");
+      setSessionStats({ success: 0, failed: 0, cost: 0, tokens: { input: 0, output: 0 } });
+
+      const hasToken = tokenPool.getCount() > 0;
+      const isAntigravity = config.provider === "antigravity";
+
+      if (!isAntigravity && !config.apiKey) {
+        setError("❌ 请先配置 API Key");
+        setScreen("menu");
+        return;
+      }
+
+      if (isAntigravity && !hasToken) {
+        setError("❌ 请先登录 Antigravity 账号 (配置页按 'L')");
+        setScreen("menu");
+        return;
+      }
+
+      const logger = createLogger(config.debugLog);
+      const provider = createProvider(config);
+      const processor = new BatchProcessor({
+        config,
+        provider,
+        logger,
+        onProgress: (current, total, file, stats) => {
+          setProgress({ current, total, file });
+          if (!stats) {
+            setLastStats({});
+            setThumbnail("");
+            return;
+          }
+          if (stats.lastTaskTokens || stats.lastTaskDuration) {
+            setLastStats({ tokens: stats.lastTaskTokens, duration: stats.lastTaskDuration });
+          }
+          if (stats.lastTaskThumbnail) {
+            setThumbnail(renderImageToTerminal(stats.lastTaskThumbnail));
+          }
+        },
+        onCostUpdate: (newCost) => {
+          setCost(newCost);
+        },
+      });
+      processorRef.current = processor;
+
+      let tasksToRun: BatchTask[] = [];
+
+      if (singleFilePath) {
+        const absPath = normalizePath(singleFilePath, process.cwd());
+        if (!absPath) throw new Error("未指定输入路径");
+        if (!existsSync(absPath)) throw new Error(`文件不存在: ${absPath}`);
+
+        tasksToRun = [
+          {
+            absoluteInputPath: absPath,
+            absoluteOutputPath: join(
+              config.outputDir,
+              `${basename(absPath, extname(absPath))}${config.renameRules.suffix}${extname(absPath)}`,
+            ),
+            relativePath: basename(absPath),
+          },
+        ];
+
+        await executeBatch(tasksToRun, previewOnly, singleFilePath);
+      } else {
+        const allTasks = processor.scanTasks();
+        const pendingTasks = processor.filterPendingTasks(allTasks);
+
+        // 如果不是预览模式，且检测到有已完成的任务，且有任务被跳过（即 pending < all）
+        // 如果 pendingTasks.length === 0 且 allTasks.length > 0，说明所有任务都已完成，也应该提示
+        const processedCount = allTasks.length - pendingTasks.length;
+
+        if (!previewOnly && allTasks.length > 0 && processedCount > 0) {
+          setResumeState({
+            allTasks,
+            pendingTasks,
+            totalCount: allTasks.length,
+            processedCount,
+          });
+          setScreen("resume-check");
+          return;
+        }
+
+        if (pendingTasks.length === 0) {
+          setError("⚠️ 未找到待处理的图片任务 (可能input为空)");
+          setScreen("menu");
+          return;
+        }
+
+        await executeBatch(pendingTasks, previewOnly);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setScreen("menu");
+    }
+  };
+
+  useShortcuts({
+    screen,
+    onExit: exit,
+    onNavigate: (target) => {
+      // 停止处理器
+      if (screen === "process" && target === "menu") {
+        processorRef.current?.stop();
+      }
+      setScreen(target);
+    },
+    onSelectMenu: (idx) => {
+      const item = menuItems[idx];
+      if (item) handleMenuSelect(item);
+    },
+    onOpenReport: () => {
+      if (reportPath) openPath(reportPath);
+    },
+    canOpenReport: !!reportPath,
+    isEditing: isGlobalEditing,
+  });
+
+  // Global key listener for 'i' install and 't' theme toggle
+  useInput((input, key) => {
+    const char = input.toLowerCase();
+    if (screen === "menu" && sharpMissing && !installingSharp && pkgManager && char === "i") {
+      handleInstallSharp();
+    }
+    if (char === "t" && !isGlobalEditing) {
+      setTheme((prev) => (prev === "light" ? "dark" : "light"));
+    }
+  });
+
+  return (
+    <Box flexDirection="column" padding={1} backgroundColor={bg} width="100%">
+      {/* 标题区域 - 真正旗舰级 Block Logo */}
+      <Box flexDirection="column" marginBottom={1}>
+        {/* MARKER */}
+        <Box flexDirection="column" backgroundColor={bg}>
+          <Text color={isLight ? "black" : "white"} bold backgroundColor={bg}>
+            ███╗ ███╗ █████╗ ██████╗ ██╗ ██╗███████╗██████╗
+          </Text>
+          <Text color={isLight ? "black" : "white"} bold backgroundColor={bg}>
+            ████╗ ████║██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗
+          </Text>
+          <Text color={accent} bold backgroundColor={bg}>
+            ██╔████╔██║███████║██████╔╝█████╔╝ █████╗ ██████╔╝
+          </Text>
+          <Text color={accent} bold backgroundColor={bg}>
+            ██║╚██╔╝██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝ ██╔══██╗
+          </Text>
+          <Text color={accent} bold backgroundColor={bg}>
+            ██║ ╚═╝ ██║██║ ██║██║ ██║██║ ██╗███████╗██║ ██║
+          </Text>
+          <Text color={accent} bold backgroundColor={bg}>
+            ╚═╝ ╚═╝╚═╝ ╚═╝╚═╝ ╚═╝╚═╝ ╚═╝╚══════╝╚═╝ ╚═╝
+          </Text>
+        </Box>
+
+        <Text> </Text>
+
+        {/* CLEANER */}
+        <Box flexDirection="column" backgroundColor={bg}>
+          <Text color={accent} bold backgroundColor={bg}>
+            {" "}
+            ██████╗██╗ ███████╗ █████╗ ███╗ ██╗███████╗██████╗{" "}
+          </Text>
+          <Text color={accent} bold backgroundColor={bg}>
+            ██╔════╝██║ ██╔════╝██╔══██╗████╗ ██║██╔════╝██╔══██╗
+          </Text>
+          <Text color={success} bold backgroundColor={bg}>
+            ██║ ██║ █████╗ ███████║██╔██╗ ██║█████╗ ██████╔╝
+          </Text>
+          <Text color={success} bold backgroundColor={bg}>
+            ██║ ██║ ██╔══╝ ██╔══██║██║╚██╗██║██╔══╝ ██╔══██╗
+          </Text>
+          <Text color={accent} bold backgroundColor={bg}>
+            ╚██████╗███████╗███████╗██║ ██║██║ ╚████║███████╗██║ ██║
+          </Text>
+          <Box backgroundColor={bg}>
+            <Text color={accent} bold backgroundColor={bg}>
+              {" "}
+              ╚═════╝╚══════╝╚══════╝╚═╝ ╚═╝╚═╝ ╚═══╝╚══════╝╚═╝ ╚═╝
+            </Text>
+            <Text color={fg} bold backgroundColor={bg}>
+              {" "}
+              v{pkg.version}
+            </Text>
+          </Box>
+        </Box>
+
+        <Text> </Text>
+        <Text>
+          <Text color={dim} backgroundColor={bg}>
+            {" "}
+            🧹 Professional AI Image Restorer & Cleaner Tool{" "}
+          </Text>
+        </Text>
+      </Box>
+      {/* 当前配置仪表盘 */}
+      <Box marginBottom={1} flexDirection="column" backgroundColor={bg}>
+        <Text color={dim} backgroundColor={bg}>
+          ─────────── 当前配置 ───────────
+        </Text>
+        <Box marginTop={0} backgroundColor={bg}>
+          <Box
+            borderStyle="round"
+            borderColor={isLight ? "black" : "magenta"}
+            marginRight={1}
+            backgroundColor={bg}
+          >
+            <Box paddingX={1} backgroundColor={bg}>
+              <Text color={isLight ? "#0066CC" : "magenta"} bold backgroundColor={bg}>
+                ⚡ {config.provider.toUpperCase()}
+              </Text>
+            </Box>
+          </Box>
+          <Box
+            borderStyle="round"
+            borderColor={isLight ? "black" : "blue"}
+            marginRight={1}
+            backgroundColor={bg}
+          >
+            <Box paddingX={1} backgroundColor={bg}>
+              <Text color={isLight ? "#1D1D1F" : "blue"} backgroundColor={bg}>
+                🤖 {config.modelName}
+              </Text>
+            </Box>
+          </Box>
+          <Box
+            borderStyle="round"
+            borderColor={
+              isLight
+                ? "black"
+                : config.modelName.toLowerCase().includes("image")
+                  ? "green"
+                  : "yellow"
+            }
+            backgroundColor={bg}
+          >
+            <Box paddingX={1} backgroundColor={bg}>
+              <Text
+                color={
+                  config.modelName.toLowerCase().includes("image")
+                    ? isLight
+                      ? "#28CD41"
+                      : "green"
+                    : isLight
+                      ? "#FF9500"
+                      : "yellow"
+                }
+                bold
+                backgroundColor={bg}
+              >
+                {config.modelName.toLowerCase().includes("image")
+                  ? "🎨 Native Mode"
+                  : "⚡ Detection Mode"}
+              </Text>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* 错误展示 */}
+      {error && (
+        <Box marginBottom={1} backgroundColor={bg}>
+          <Text color={danger} bold backgroundColor={bg}>
+            ✘ {error}
+          </Text>
+        </Box>
+      )}
+
+      {/* 状态栏 */}
+      {status && (
+        <Box marginBottom={1} paddingX={1} backgroundColor={bg}>
+          <Text color={accent} italic backgroundColor={bg}>
+            ✨ {status}
+          </Text>
+        </Box>
+      )}
+
+      {/* Sharp 依赖缺失警告 */}
+      {screen === "menu" && sharpMissing && (
+        <Box
+          marginBottom={1}
+          borderStyle="round"
+          borderColor={isLight ? "blue" : "yellow"}
+          flexDirection="column"
+          paddingX={1}
+          backgroundColor={bg}
+        >
+          <Text color={accent} bold backgroundColor={bg}>
+            ⚠️ 检测到缺少依赖: sharp
+          </Text>
+          <Text color={fg} backgroundColor={bg}>
+            本地模式 (Detection Mode) 需要 sharp 模块。
+          </Text>
+
+          {installingSharp ? (
+            <Box marginTop={1} flexDirection="column">
+              <Text color={isLight ? "blue" : "cyan"}>
+                <Spinner type="dots" /> 正在自动安装 sharp...
+              </Text>
+              <Box marginTop={0}>
+                <FakeProgressBar percent={installProgress} isLight={isLight} />
+              </Box>
+              <Text color={dim} backgroundColor={bg}>
+                {installLog}
+              </Text>
+            </Box>
+          ) : pkgManager ? (
+            <Box marginTop={1} flexDirection="column">
+              <Text>检测到您已安装 {pkgManager}。</Text>
+              <Text color="green" bold>
+                💡 按 'I' 键自动安装
+              </Text>
+              {DependencyManager.getInstance().lastError && (
+                <Box
+                  marginTop={1}
+                  borderStyle="single"
+                  borderColor={danger}
+                  paddingX={1}
+                  backgroundColor={bg}
+                >
+                  <Box backgroundColor={bg}>
+                    <Text color="red" backgroundColor={bg}>
+                      Debug: {DependencyManager.getInstance().lastError}
+                    </Text>
+                  </Box>
+                </Box>
+              )}
+              {DependencyManager.getInstance().debugInfo && (
+                <Text color={dim} backgroundColor={bg}>
+                  Path: {DependencyManager.getInstance().debugInfo}
+                </Text>
+              )}
+            </Box>
+          ) : (
+            <Box marginTop={1} flexDirection="column">
+              <Text color="red">未检测到 Node.js 环境 (npm/bun)。</Text>
+              <Text>请先安装 Node.js，然后在同级目录运行: npm install sharp</Text>
+            </Box>
           )}
+        </Box>
+      )}
+
+      {/* 配置缺失警告 */}
+      {screen === "menu" &&
+        (() => {
+          const hasToken = tokenPool.getCount() > 0;
+          const needsGoogleKey = !config.apiKey && config.provider === "google";
+          const needsOpenAIKey = !config.apiKey && config.provider === "openai";
+          const needsAntigravityLogin = config.provider === "antigravity" && !hasToken;
+
+          if (needsGoogleKey || needsOpenAIKey || needsAntigravityLogin) {
+            const providerLabel =
+              config.provider === "google" ? "Google Gemini API" : config.provider;
+            return (
+              <Box
+                marginBottom={1}
+                borderStyle="round"
+                borderColor={danger}
+                flexDirection="column"
+                paddingX={1}
+                backgroundColor={bg}
+              >
+                <Box flexDirection="column" backgroundColor={bg}>
+                  <Text color={isLight ? "red" : "red"} bold backgroundColor={bg}>
+                    ⚠️ 服务未就绪
+                  </Text>
+                  {needsAntigravityLogin ? (
+                    <Text color="red">请进入 "⚙️ 配置设置" 按 'L' 键登录 Antigravity 账号。</Text>
+                  ) : (
+                    <>
+                      <Text color="red">当前 {providerLabel} 未配置 API Key。</Text>
+                      {hasToken ? (
+                        <Text color={isLight ? "blue" : "cyan"} bold>
+                          💡 检测到您已登录 Antigravity，请在配置中切换 Provider 即可直接使用！
+                        </Text>
+                      ) : (
+                        <Text color="red" backgroundColor={bg}>
+                          提示: 您也可以切换 Provider 为 "antigravity" 使用集成登录。
+                        </Text>
+                      )}
+                    </>
+                  )}
+                </Box>
+              </Box>
+            );
+          }
+          return null;
+        })()}
+
+      {/* 主内容 */}
+      {screen === "menu" && (
+        <Box flexDirection="column" backgroundColor={bg}>
+          <Box marginBottom={1} backgroundColor={bg}>
+            <Text bold backgroundColor={bg}>
+              请选择操作:
+            </Text>
+          </Box>
+          <Box backgroundColor={bg} paddingX={1}>
+            <SelectInput items={menuItems} onSelect={handleMenuSelect} />
+          </Box>
+        </Box>
+      )}
+
+      {screen === "config" && (
+        <ConfigScreen
+          config={config}
+          onSave={(newConfig) => {
+            saveConfig(newConfig);
+            setConfig(newConfig);
+            setStatus("✅ 配置已保存");
+            setScreen("menu");
+            setIsGlobalEditing(false); // 重置状态
+          }}
+          onCancel={() => {
+            setScreen("menu");
+            setIsGlobalEditing(false); // 重置状态
+          }}
+          onEditingChange={setIsGlobalEditing}
+          logger={createLogger(config.debugLog)}
+          isLight={isLight}
+        />
+      )}
+
+      {screen === "resume-check" && resumeState && (
+        <ResumeCheckScreen
+          state={resumeState}
+          isLight={isLight}
+          onResume={() => {
+            // 继续：只运行 pendingTasks
+            executeBatch(resumeState.pendingTasks, false);
+          }}
+          onRestart={() => {
+            // 重新开始：先清除进度，然后运行 allTasks
+            clearProgress();
+            // 注意：这里需要更新 processor 内部的 progress 状态，最简单的方法是重新实例化或者调用 clearProgress 方法
+            // 这里的 clearProgress() 是全局工具函数，会重置 progress.json
+            // 我们还需要重置 processor 实例的 progress 对象
+            processorRef.current?.clearProgress();
+            executeBatch(resumeState.allTasks, false);
+          }}
+          onCancel={() => {
+            setScreen("menu");
+            setResumeState(null);
+          }}
+        />
+      )}
+
+      {screen === "file-selection" && (
+        <FileSelectionScreen
+          inputDir={config.inputDir}
+          onSelect={(path) => {
+            setScreen("process");
+            runProcess(false, path);
+            setIsGlobalEditing(false); // 重置状态
+          }}
+          onCancel={() => {
+            setScreen("menu");
+            setIsGlobalEditing(false); // 重置状态
+          }}
+          onEditingChange={setIsGlobalEditing}
+          isLight={isLight}
+        />
+      )}
+
+      {screen === "process" && (
+        <Box flexDirection="column">
+          <Box>
+            <Text color="green">
+              <Spinner type="dots" />
+            </Text>
+            <Text> 正在处理 ... (按 'Q' 终止)</Text>
+          </Box>
+          {progress.total > 0 && (
+            <Box marginTop={1} flexDirection="column">
+              <Text>
+                进度: {progress.current}/{progress.total}
+              </Text>
+              <Text color={dim} backgroundColor={bg}>
+                当前: {progress.file}
+              </Text>
+
+              {thumbnail && (
+                <Box
+                  borderStyle="single"
+                  borderColor={isLight ? "black" : "gray"}
+                  paddingX={1}
+                  marginBottom={0}
+                  backgroundColor={bg}
+                >
+                  <Box backgroundColor={bg}>
+                    <Text backgroundColor={bg}>{thumbnail}</Text>
+                  </Box>
+                </Box>
+              )}
+
+              {lastStats.tokens && (
+                <Text color={isLight ? "blue" : "cyan"}>
+                  ⚡ 上个任务: {lastStats.tokens.input + lastStats.tokens.output} tokens (
+                  {lastStats.tokens.input} 输入 / {lastStats.tokens.output} 输出)
+                </Text>
+              )}
+              {lastStats.duration !== undefined && (
+                <Text color={dim} backgroundColor={bg}>
+                  ⏱️ 耗时: {formatDuration(lastStats.duration)}
+                </Text>
+              )}
+              <Box marginTop={1}>
+                <Text color={isLight ? "magenta" : "yellow"}>💰 累计成本: ${cost.toFixed(4)}</Text>
+                {config.budgetLimit > 0 && (
+                  <Text color={dim} backgroundColor={bg}>
+                    {" "}
+                    (上限: ${config.budgetLimit})
+                  </Text>
+                )}
+              </Box>
+            </Box>
+          )}
+        </Box>
+      )}
+
+      {screen === "done" && (
+        <Box
+          flexDirection="column"
+          borderStyle="round"
+          borderColor={isLight ? "black" : success}
+          backgroundColor={bg}
+        >
+          <Box paddingX={2} flexDirection="column" backgroundColor={bg}>
+            <Text color={success} bold backgroundColor={bg}>
+              ✅ 批处理任务完成!
+            </Text>
+            <Box flexDirection="column" marginTop={1} backgroundColor={bg}>
+              <Text color={fg} backgroundColor={bg}>
+                • 成功:{" "}
+                <Text color={success} backgroundColor={bg}>
+                  {sessionStats.success}
+                </Text>{" "}
+                个
+              </Text>
+              <Text color={fg} backgroundColor={bg}>
+                • 失败:{" "}
+                <Text color={danger} backgroundColor={bg}>
+                  {sessionStats.failed}
+                </Text>{" "}
+                个
+              </Text>
+              <Text color={fg} backgroundColor={bg}>
+                • 耗能:{" "}
+                <Text color={accent} backgroundColor={bg}>
+                  {sessionStats.tokens.input + sessionStats.tokens.output}
+                </Text>{" "}
+                Tokens
+              </Text>
+              <Text color={fg} backgroundColor={bg}>
+                • 本次成本:{" "}
+                <Text color={warning} backgroundColor={bg}>
+                  ${sessionStats.cost.toFixed(4)}
+                </Text>
+              </Text>
+            </Box>
+            <Box marginTop={1} flexDirection="column" backgroundColor={bg}>
+              <Text color={dim} backgroundColor={bg}>
+                按{" "}
+              </Text>
+              <Box backgroundColor={bg}>
+                <Text bold color={accent} backgroundColor={bg}>
+                  {" "}
+                  Enter{" "}
+                </Text>
+                <Text color={dim} backgroundColor={bg}>
+                  {" "}
+                  键打开 HTML 处理报告
+                </Text>
+              </Box>
+              <Text color={dim} backgroundColor={bg}>
+                按 Esc 返回主菜单
+              </Text>
+            </Box>
+          </Box>
+        </Box>
+      )}
+
+      {/* 底部导航 */}
+      <Box
+        marginTop={1}
+        borderStyle="round"
+        borderColor={isLight ? "black" : "gray"}
+        backgroundColor={bg}
+      >
+        <Box paddingX={1} backgroundColor={bg}>
+          <Text color={dim} backgroundColor={bg}>
+            快捷键:{" "}
+          </Text>
+          <Text color={accent} backgroundColor={bg}>
+            ↑↓
+          </Text>
+          <Text color={dim} backgroundColor={bg}>
+            {" "}
+            导航 |{" "}
+          </Text>
+          <Text color={accent} backgroundColor={bg}>
+            Enter
+          </Text>
+          <Text color={dim} backgroundColor={bg}>
+            {" "}
+            选择 |{" "}
+          </Text>
+          <Text color={accent} backgroundColor={bg}>
+            Q
+          </Text>
+          <Text color={dim} backgroundColor={bg}>
+            {" "}
+            退出
+          </Text>
         </Box>
       </Box>
     </Box>

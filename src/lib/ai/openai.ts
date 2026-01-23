@@ -11,11 +11,12 @@ export class OpenAIProvider implements AIProvider {
   private modelName: string;
 
   constructor(config: Config) {
+    const settings = config.providerSettings.openai;
     this.client = new OpenAI({
-      apiKey: config.apiKey,
-      baseURL: config.baseUrl,
+      apiKey: settings.apiKey,
+      baseURL: settings.baseUrl,
     });
-    this.modelName = config.modelName;
+    this.modelName = settings.modelName;
   }
 
   async processImage(imageBuffer: Buffer, prompt: string): Promise<ProcessResult> {
@@ -56,6 +57,7 @@ export class OpenAIProvider implements AIProvider {
           });
 
           return this.parseResponse(response);
+          // biome-ignore lint/suspicious/noExplicitAny: error handling
         } catch (error: any) {
           // Keep any here for status/message access shorthand, or use type guard
           lastError = error;

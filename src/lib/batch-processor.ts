@@ -1,4 +1,12 @@
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, dirname, extname, join, relative } from "node:path";
 import pLimit from "p-limit";
 import { cleanMarkersLocal, convertFormat, getOutputExtension } from "./cleaner";
@@ -327,10 +335,11 @@ export class BatchProcessor {
         if (existsSync(this.config.outputDir)) {
           const dirs = readdirSync(this.config.outputDir).filter((d) => {
             const fullPath = join(this.config.outputDir, d);
+            const isCurrentTask = fullPath === targetDir;
             return (
               d.startsWith("task_") &&
               statSync(fullPath).isDirectory() &&
-              existsSync(join(fullPath, reportName))
+              (isCurrentTask || existsSync(join(fullPath, reportName)))
             );
           });
 
@@ -338,11 +347,12 @@ export class BatchProcessor {
           dirs.sort().reverse();
 
           for (const d of dirs) {
+            const taskReportPath = join(this.config.outputDir, d, reportName);
             const isCurrent = join(this.config.outputDir, d) === targetDir;
-            // 相对路径：从当前报告目录到其他任务报告
-            // 当前在 output/task_current/task_report.html
-            // 目标在 output/task_other/task_report.html -> ../task_other/task_report.html
-            const relativeReportPath = isCurrent ? reportName : `../${d}/${reportName}`;
+            // 使用 path.relative 计算从当前报告到目标报告的相对路径
+            const relativeReportPath = (
+              isCurrent ? reportName : relative(targetDir, taskReportPath)
+            ).replace(/\\/g, "/");
 
             allTaskNav.push({
               id: d,
