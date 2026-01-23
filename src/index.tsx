@@ -4,17 +4,24 @@ import { Box, Text, render, useApp, useInput } from "ink";
 import SelectInput from "ink-select-input";
 import Spinner from "ink-spinner";
 import TextInput from "ink-text-input";
-import { DependencyManager, type PackageManager } from "./lib/deps-manager"; // Update import
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { createProvider } from "./lib/ai";
-import { loadToken, loginWithAntigravity } from "./lib/antigravity/auth";
+import { loginWithAntigravity } from "./lib/antigravity/auth";
 import { AntigravityProvider, type QuotaStatus } from "./lib/antigravity/provider";
+import { tokenPool } from "./lib/antigravity/token-pool";
+import { DependencyManager, type PackageManager } from "./lib/deps-manager"; // Update import
 function isAntigravityProvider(provider: unknown): provider is AntigravityProvider {
   return provider instanceof AntigravityProvider;
 }
 import { BatchProcessor } from "./lib/batch-processor";
-import { type Config, getDefaultConfig, loadConfig, resetConfig, saveConfig } from "./lib/config-manager";
+import {
+  type Config,
+  getDefaultConfig,
+  loadConfig,
+  resetConfig,
+  saveConfig,
+} from "./lib/config-manager";
 import { createLogger } from "./lib/logger";
 import type { BatchTask } from "./lib/types";
 import { formatDuration, normalizePath, openPath, renderImageToTerminal } from "./lib/utils";
@@ -30,7 +37,8 @@ function useShortcuts(params: {
   canOpenReport: boolean;
   isEditing?: boolean;
 }) {
-  const { screen, onExit, onNavigate, onSelectMenu, onOpenReport, canOpenReport, isEditing } = params;
+  const { screen, onExit, onNavigate, onSelectMenu, onOpenReport, canOpenReport, isEditing } =
+    params;
 
   useInput(async (input, key) => {
     // 如果正在编辑（如 TextInput 中），跳过全局快捷键
@@ -142,7 +150,7 @@ function FileSelectorWithInput(props: {
 
   useEffect(() => {
     props.onEditingChange?.(mode === "manual");
-  }, [mode]);
+  }, [mode, props.onEditingChange]);
 
   useInput((input, key) => {
     if (key.tab) {
@@ -184,7 +192,6 @@ function FileSelectorWithInput(props: {
     </Box>
   );
 }
-
 
 // Simple text-based progress bar component
 const FakeProgressBar = ({ percent }: { percent: number }) => {
@@ -233,14 +240,14 @@ const App: React.FC = () => {
   // Change terminal background color using OSC sequences
   useEffect(() => {
     if (isLight) {
-        // Set Default Background to White, Foreground to Black
-        process.stdout.write("\x1b]11;#ffffff\x07"); 
-        process.stdout.write("\x1b]10;#000000\x07");
+      // Set Default Background to White, Foreground to Black
+      process.stdout.write("\x1b]11;#ffffff\x07");
+      process.stdout.write("\x1b]10;#000000\x07");
     } else {
-        // Reset to typically dark defaults (Dark Gray bg, Light Gray fg)
-        // Note: We can't easily know user's original preferred color, so we set a safe dark theme.
-        process.stdout.write("\x1b]11;#0c0c0c\x07");
-        process.stdout.write("\x1b]10;#cccccc\x07");
+      // Reset to typically dark defaults (Dark Gray bg, Light Gray fg)
+      // Note: We can't easily know user's original preferred color, so we set a safe dark theme.
+      process.stdout.write("\x1b]11;#0c0c0c\x07");
+      process.stdout.write("\x1b]10;#cccccc\x07");
     }
   }, [isLight]);
 
@@ -270,15 +277,15 @@ const App: React.FC = () => {
 
     // fake progress simulation
     const timer = setInterval(() => {
-       setInstallProgress(p => {
-         if (p >= 90) return p;
-         return p + Math.floor(Math.random() * 5);
-       });
+      setInstallProgress((p) => {
+        if (p >= 90) return p;
+        return p + Math.floor(Math.random() * 5);
+      });
     }, 500);
 
     try {
       await DependencyManager.getInstance().installSharp((msg) => {
-         setInstallLog(msg);
+        setInstallLog(msg);
       });
       clearInterval(timer);
       setInstallProgress(100);
@@ -328,7 +335,7 @@ const App: React.FC = () => {
 
   const runProcess = async (previewOnly: boolean, singleFilePath?: string) => {
     try {
-      const hasToken = !!loadToken();
+      const hasToken = tokenPool.getCount() > 0;
       const isAntigravity = config.provider === "antigravity";
 
       if (!isAntigravity && !config.apiKey) {
@@ -442,65 +449,104 @@ const App: React.FC = () => {
 
   // Global key listener for 'i' install and 't' theme toggle
   useInput((input, key) => {
-     const char = input.toLowerCase();
-     if (screen === "menu" && sharpMissing && !installingSharp && pkgManager && char === "i") {
-        handleInstallSharp();
-     }
-     if (char === "t" && !isGlobalEditing) {
-        setTheme(prev => prev === "light" ? "dark" : "light");
-     }
+    const char = input.toLowerCase();
+    if (screen === "menu" && sharpMissing && !installingSharp && pkgManager && char === "i") {
+      handleInstallSharp();
+    }
+    if (char === "t" && !isGlobalEditing) {
+      setTheme((prev) => (prev === "light" ? "dark" : "light"));
+    }
   });
 
   return (
-    <Box flexDirection="column" padding={1} width="100%" height="100%" minHeight="100%" backgroundColor={bg}>
+    <Box
+      flexDirection="column"
+      padding={1}
+      width="100%"
+      height="100%"
+      minHeight="100%"
+      backgroundColor={bg}
+    >
       {/* 标题区域 - 真正旗舰级 Block Logo */}
       <Box flexDirection="column" marginBottom={1}>
         {/* MARKER */}
         <Text>
-          <Text color={isLight ? "black" : "white"} bold>███╗   ███╗ █████╗ ██████╗ ██╗  ██╗███████╗██████╗</Text>
+          <Text color={isLight ? "black" : "white"} bold>
+            ███╗ ███╗ █████╗ ██████╗ ██╗ ██╗███████╗██████╗
+          </Text>
         </Text>
         <Text>
-          <Text color={isLight ? "black" : "white"} bold>████╗ ████║██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗</Text>
+          <Text color={isLight ? "black" : "white"} bold>
+            ████╗ ████║██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗
+          </Text>
         </Text>
         <Text>
-          <Text color={isLight ? "blue" : "cyan"} bold>██╔████╔██║███████║██████╔╝█████╔╝ █████╗  ██████╔╝</Text>
+          <Text color={isLight ? "blue" : "cyan"} bold>
+            ██╔████╔██║███████║██████╔╝█████╔╝ █████╗ ██████╔╝
+          </Text>
         </Text>
         <Text>
-          <Text color={isLight ? "blue" : "cyan"} bold>██║╚██╔╝██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝  ██╔══██╗</Text>
+          <Text color={isLight ? "blue" : "cyan"} bold>
+            ██║╚██╔╝██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝ ██╔══██╗
+          </Text>
         </Text>
         <Text>
-          <Text color="blue" bold>██║ ╚═╝ ██║██║  ██║██║  ██║██║  ██╗███████╗██║  ██║</Text>
+          <Text color="blue" bold>
+            ██║ ╚═╝ ██║██║ ██║██║ ██║██║ ██╗███████╗██║ ██║
+          </Text>
         </Text>
         <Text>
-          <Text color="blue" bold>╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝</Text>
+          <Text color="blue" bold>
+            ╚═╝ ╚═╝╚═╝ ╚═╝╚═╝ ╚═╝╚═╝ ╚═╝╚══════╝╚═╝ ╚═╝
+          </Text>
         </Text>
-        
+
         <Text> </Text>
 
         {/* CLEANER */}
         <Text>
-          <Text color={isLight ? "blue" : "cyan"} bold> ██████╗██╗     ███████╗ █████╗ ███╗   ██╗███████╗██████╗ </Text>
+          <Text color={isLight ? "blue" : "cyan"} bold>
+            {" "}
+            ██████╗██╗ ███████╗ █████╗ ███╗ ██╗███████╗██████╗{" "}
+          </Text>
         </Text>
         <Text>
-          <Text color={isLight ? "blue" : "cyan"} bold>██╔════╝██║     ██╔════╝██╔══██╗████╗  ██║██╔════╝██╔══██╗</Text>
+          <Text color={isLight ? "blue" : "cyan"} bold>
+            ██╔════╝██║ ██╔════╝██╔══██╗████╗ ██║██╔════╝██╔══██╗
+          </Text>
         </Text>
         <Text>
-          <Text color="green" bold>██║     ██║     █████╗  ███████║██╔██╗ ██║█████╗  ██████╔╝</Text>
+          <Text color="green" bold>
+            ██║ ██║ █████╗ ███████║██╔██╗ ██║█████╗ ██████╔╝
+          </Text>
         </Text>
         <Text>
-          <Text color="green" bold>██║     ██║     ██╔══╝  ██╔══██║██║╚██╗██║██╔══╝  ██╔══██╗</Text>
+          <Text color="green" bold>
+            ██║ ██║ ██╔══╝ ██╔══██║██║╚██╗██║██╔══╝ ██╔══██╗
+          </Text>
         </Text>
         <Text>
-          <Text color={isLight ? "magenta" : "yellow"} bold>╚██████╗███████╗███████╗██║  ██║██║ ╚████║███████╗██║  ██║</Text>
+          <Text color={isLight ? "magenta" : "yellow"} bold>
+            ╚██████╗███████╗███████╗██║ ██║██║ ╚████║███████╗██║ ██║
+          </Text>
         </Text>
         <Text>
-          <Text color={isLight ? "magenta" : "yellow"} bold> ╚═════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝</Text>
-          <Text color={isLight ? "black" : "yellow"} bold> v1.0.0</Text>
+          <Text color={isLight ? "magenta" : "yellow"} bold>
+            {" "}
+            ╚═════╝╚══════╝╚══════╝╚═╝ ╚═╝╚═╝ ╚═══╝╚══════╝╚═╝ ╚═╝
+          </Text>
+          <Text color={isLight ? "black" : "yellow"} bold>
+            {" "}
+            v1.0.0
+          </Text>
         </Text>
 
         <Text> </Text>
         <Text>
-          <Text color={dim} dimColor={!isLight}>         🧹 Professional AI Image Restorer & Cleaner Tool          </Text>
+          <Text color={dim} dimColor={!isLight}>
+            {" "}
+            🧹 Professional AI Image Restorer & Cleaner Tool{" "}
+          </Text>
         </Text>
       </Box>
       {/* 当前配置仪表盘 */}
@@ -508,14 +554,25 @@ const App: React.FC = () => {
         <Text dimColor>─────────── 当前配置 ───────────</Text>
         <Box marginTop={0}>
           <Box borderStyle="round" borderColor="magenta" paddingX={1} marginRight={1}>
-            <Text color="magenta" bold>⚡ {config.provider.toUpperCase()}</Text>
+            <Text color="magenta" bold>
+              ⚡ {config.provider.toUpperCase()}
+            </Text>
           </Box>
           <Box borderStyle="round" borderColor="blue" paddingX={1} marginRight={1}>
             <Text color="blue">🤖 {config.modelName}</Text>
           </Box>
-          <Box borderStyle="round" borderColor={config.modelName.toLowerCase().includes("image") ? "green" : "yellow"} paddingX={1}>
-            <Text color={config.modelName.toLowerCase().includes("image") ? "green" : "yellow"} bold>
-              {config.modelName.toLowerCase().includes("image") ? "🎨 Native Mode" : "⚡ Detection Mode"}
+          <Box
+            borderStyle="round"
+            borderColor={config.modelName.toLowerCase().includes("image") ? "green" : "yellow"}
+            paddingX={1}
+          >
+            <Text
+              color={config.modelName.toLowerCase().includes("image") ? "green" : "yellow"}
+              bold
+            >
+              {config.modelName.toLowerCase().includes("image")
+                ? "🎨 Native Mode"
+                : "⚡ Detection Mode"}
             </Text>
           </Box>
         </Box>
@@ -552,34 +609,36 @@ const App: React.FC = () => {
             ⚠️ 检测到缺少依赖: sharp
           </Text>
           <Text color="yellow">本地模式 (Detection Mode) 需要 sharp 模块。</Text>
-          
+
           {installingSharp ? (
             <Box marginTop={1} flexDirection="column">
               <Text color="cyan">
-                 <Spinner type="dots" /> 正在自动安装 sharp...
+                <Spinner type="dots" /> 正在自动安装 sharp...
               </Text>
               <Box marginTop={0}>
-                 <FakeProgressBar percent={installProgress} />
+                <FakeProgressBar percent={installProgress} />
               </Box>
               <Text dimColor>{installLog}</Text>
             </Box>
           ) : pkgManager ? (
-             <Box marginTop={1} flexDirection="column">
-                <Text>检测到您已安装 {pkgManager}。</Text>
-                <Text color="green" bold>💡 按 'I' 键自动安装</Text>
-                {DependencyManager.getInstance().lastError && (
-                  <Box marginTop={1} borderStyle="single" borderColor="red" paddingX={1}>
-                     <Text color="red">Debug: {DependencyManager.getInstance().lastError}</Text>
-                  </Box>
-                )}
-                {DependencyManager.getInstance().debugInfo && (
-                  <Text dimColor>Path: {DependencyManager.getInstance().debugInfo}</Text>
-               )}
-             </Box>
+            <Box marginTop={1} flexDirection="column">
+              <Text>检测到您已安装 {pkgManager}。</Text>
+              <Text color="green" bold>
+                💡 按 'I' 键自动安装
+              </Text>
+              {DependencyManager.getInstance().lastError && (
+                <Box marginTop={1} borderStyle="single" borderColor="red" paddingX={1}>
+                  <Text color="red">Debug: {DependencyManager.getInstance().lastError}</Text>
+                </Box>
+              )}
+              {DependencyManager.getInstance().debugInfo && (
+                <Text dimColor>Path: {DependencyManager.getInstance().debugInfo}</Text>
+              )}
+            </Box>
           ) : (
             <Box marginTop={1} flexDirection="column">
-               <Text color="red">未检测到 Node.js 环境 (npm/bun)。</Text>
-               <Text>请先安装 Node.js，然后在同级目录运行: npm install sharp</Text>
+              <Text color="red">未检测到 Node.js 环境 (npm/bun)。</Text>
+              <Text>请先安装 Node.js，然后在同级目录运行: npm install sharp</Text>
             </Box>
           )}
         </Box>
@@ -588,7 +647,7 @@ const App: React.FC = () => {
       {/* 配置缺失警告 */}
       {screen === "menu" &&
         (() => {
-          const hasToken = !!loadToken();
+          const hasToken = tokenPool.getCount() > 0;
           const needsGoogleKey = !config.apiKey && config.provider === "google";
           const needsOpenAIKey = !config.apiKey && config.provider === "openai";
           const needsAntigravityLogin = config.provider === "antigravity" && !hasToken;
@@ -820,7 +879,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
   const [editConfig, setEditConfig] = useState<Config>({ ...config });
   const [isEditing, setIsEditing] = useState(false);
   const [focusIndex, setFocusIndex] = useState(0);
-  const [authState, setAuthState] = useState(loadToken());
+  const [authState, setAuthState] = useState(tokenPool.getTokens()[0]);
   const [loginMsg, setLoginMsg] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
@@ -828,7 +887,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
 
   useEffect(() => {
     onEditingChange?.(isEditing);
-  }, [isEditing]);
+  }, [isEditing, onEditingChange]);
 
   useEffect(() => {
     if (editConfig.provider === "antigravity" && authState) {
@@ -1029,12 +1088,13 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
     } else if (input === "o") {
       logger.openLogFolder();
       setLoginMsg("📂 已尝试打开日志文件夹");
-    } else if (input === "l" && editConfig.provider === "antigravity") {
-      setLoginMsg("⌛️ 正在打开浏览器登录 Auth...");
+    } else if ((input === "l" || input === "L") && editConfig.provider === "antigravity") {
+      setLoginMsg("⌛️ 正在打开浏览器添加新账号...");
       loginWithAntigravity()
         .then((token) => {
           setAuthState(token);
-          setLoginMsg(`✅ 登录成功! (${token.email})`);
+          // Force re-render of pool list
+          setLoginMsg(`✅ 账号 ${token.email} 已添加到算力池!`);
         })
         .catch((err) => {
           setLoginMsg(`❌ 登录失败: ${err.message}`);
@@ -1073,46 +1133,41 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
       {editConfig.provider === "antigravity" && (
         <Box
           borderStyle="round"
-          borderColor={authState ? "green" : "red"}
+          borderColor={tokenPool.getCount() > 0 ? "green" : "red"}
           flexDirection="column"
           marginBottom={1}
           paddingX={1}
         >
-          <Text bold color={authState ? "green" : "red"}>
-            Antigravity Auth Status: {authState ? "已登录" : "未登录"}
-          </Text>
-          {authState?.email && <Text>Email: {authState.email}</Text>}
-          {authState?.project_id && <Text>Project: {authState.project_id}</Text>}
+          <Box justifyContent="space-between">
+            <Text bold color={tokenPool.getCount() > 0 ? "green" : "red"}>
+              Antigravity Pool Status: {tokenPool.getCount() > 0 ? "在线" : "未连接"}
+            </Text>
+            <Text color="cyan">(按 'L' 添加新账号/刷新)</Text>
+          </Box>
 
-          {quota && (
-            <Box flexDirection="column" marginTop={1}>
-              {quota.tier && (
-                <Text bold color="magenta">
-                  Current Tier: {quota.tier}
-                </Text>
-              )}
-              {quota.quotaTotal && (
-                <Box flexDirection="column">
-                  <Text bold color="yellow">
-                    Quota Status:
-                  </Text>
-                  <Text>
-                    • API Quota: {quota.quotaRemaining} / {quota.quotaTotal}
-                  </Text>
-                  {quota.promptCreditsTotal && (
-                    <Text>
-                      • Prompt Credits: {quota.promptCreditsRemaining} / {quota.promptCreditsTotal}
-                    </Text>
-                  )}
+          <Box marginTop={1} flexDirection="column">
+            {tokenPool.getTokens().length === 0 ? (
+              <Text color="yellow">暂无关联账号。请按 'L' 添加 Google 账号以构建算力池。</Text>
+            ) : (
+              tokenPool.getTokens().map((t, idx) => (
+                <Box key={t.email || idx} flexDirection="row" justifyContent="space-between">
+                  <Text>👤 {t.email || "Unknown User"}</Text>
+                  <Text dimColor> | Project: {t.project_id || "N/A"}</Text>
+                  {/* Future: Show individual quota if we fetch it per user */}
                 </Box>
-              )}
-            </Box>
-          )}
+              ))
+            )}
+          </Box>
+
+          {/* Quota display - Maybe aggregating or showing just a summary that 'Pool is Ready' */}
+          {/* Since getQuota() currently fetches for *a* token, we might want to update it to fetch for *all* or just one representative. 
+              For now, let's keep the single quota display if available, but maybe hide it if it's confusing, 
+              or try to show "Combined Quota" concept later. 
+              Actually, let's simply show the count of accounts as the primary "Resource" indicator. 
+          */}
 
           <Box marginTop={1}>
-            <Text>
-              {loginMsg || (authState ? "按 'L' 重新登录" : "👉 按 'L' 键进行浏览器登录")}
-            </Text>
+            <Text color="gray">{loginMsg}</Text>
           </Box>
         </Box>
       )}
@@ -1282,11 +1337,10 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
           <Text color="magenta"> D </Text>
           <Text dimColor>恢复默认</Text>
           {editConfig.provider === "antigravity" && (
-
             <>
               <Text dimColor> | </Text>
               <Text color="magenta"> L </Text>
-              <Text dimColor>账号登录</Text>
+              <Text dimColor>添加账号/刷新</Text>
             </>
           )}
         </Box>

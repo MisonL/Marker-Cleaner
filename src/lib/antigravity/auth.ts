@@ -1,14 +1,13 @@
 import { createHash, randomBytes } from "node:crypto";
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { join } from "node:path";
+import type { Server } from "node:http";
 import open from "open";
 
-import { getConfigDir } from "../config-manager";
-import { ANTIGRAVITY_ENDPOINT, CLIENT_ID, CLIENT_SECRET } from "./constants";
+import { ANTIGRAVITY_ENDPOINTS, CLIENT_ID, CLIENT_SECRET, COMMON_HEADERS } from "./constants";
+
+import { type TokenStore, tokenPool } from "./token-pool";
 
 // ============ Constants ============
-const REDIRECT_URI = "http://localhost:51121/oauth-callback";
 const SCOPES = [
   "https://www.googleapis.com/auth/cloud-platform",
   "https://www.googleapis.com/auth/userinfo.email",
@@ -16,40 +15,9 @@ const SCOPES = [
   "https://www.googleapis.com/auth/cclog",
   "https://www.googleapis.com/auth/experimentsandconfigs",
 ];
-const TOKEN_FILE = "antigravity_token.json";
-
-function getTokenFilePath(): string {
-  return join(getConfigDir(), TOKEN_FILE);
-}
-
-/**
- * 尝试从旧路径迁移 Token 文件
- */
-function migrateOldToken(): void {
-  const oldTokenPath = join(process.cwd(), TOKEN_FILE);
-  const newTokenPath = getTokenFilePath();
-
-  if (existsSync(oldTokenPath) && !existsSync(newTokenPath)) {
-    try {
-      const oldContent = readFileSync(oldTokenPath, "utf-8");
-      writeFileSync(newTokenPath, oldContent, "utf-8");
-      // 迁移成功后删除旧文件
-      unlinkSync(oldTokenPath);
-      console.log(`✅ 已将 Token 迁移至: ${newTokenPath}`);
-    } catch (e) {
-      console.warn(`⚠️ Token 迁移失败: ${e}`);
-    }
-  }
-}
 
 // ============ Types ============
-export interface TokenStore {
-  access_token: string;
-  refresh_token: string;
-  expires_at: number;
-  project_id?: string;
-  email?: string;
-}
+export type { TokenStore } from "./token-pool";
 
 interface AntigravityTokenResponse {
   access_token: string;
@@ -65,7 +33,7 @@ interface LoadCodeAssistResponse {
   cloudaicompanionProject?: { id: string } | string;
 }
 
-// ============ PKCE Utils ============
+// ============ PKCE & State Utils ============
 function base64URLEncode(str: Buffer) {
   return str.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
@@ -80,65 +48,141 @@ function generatePKCE() {
   return { verifier, challenge };
 }
 
+function generateState() {
+  return base64URLEncode(randomBytes(16));
+}
+
+// ============ Server Utils ============
+function startServer(
+  startPort: number,
+  maxAttempts = 10,
+): Promise<{ server: Server; port: number }> {
+  return new Promise((resolve, reject) => {
+    let attempt = 0;
+
+    const tryListen = () => {
+      if (attempt >= maxAttempts) {
+        reject(
+          new Error(
+            `Could not find a free port after ${maxAttempts} attempts starting from ${startPort}`,
+          ),
+        );
+        return;
+      }
+
+      const port = startPort + attempt;
+      const server = createServer();
+
+      server.on("error", (err: unknown) => {
+        const errno = err as NodeJS.ErrnoException;
+        if (errno.code === "EADDRINUSE") {
+          attempt++;
+          tryListen();
+          return;
+        }
+        reject(err);
+      });
+
+      server.listen(port, "127.0.0.1", () => {
+        resolve({ server, port });
+      });
+    };
+
+    tryListen();
+  });
+}
+
 // ============ Auth Logic ============
 
-export function loginWithAntigravity(): Promise<TokenStore> {
+export async function loginWithAntigravity(): Promise<TokenStore> {
   const { verifier, challenge } = generatePKCE();
-  const port = 51121;
+  const state = generateState();
+
+  const { server, port } = await startServer(51121);
+  const redirectUri = `http://localhost:${port}/oauth-callback`;
 
   return new Promise((resolve, reject) => {
-    const server = createServer((req, res) => {
-      const url = new URL(req.url || "/", `http://localhost:${port}`);
+    // Timeout safety
+    const timeout = setTimeout(
+      () => {
+        server.close();
+        reject(new Error("Login timed out after 5 minutes"));
+      },
+      5 * 60 * 1000,
+    );
 
-      if (url.pathname === "/oauth-callback") {
-        const code = url.searchParams.get("code");
-        const error = url.searchParams.get("error");
+    server.on("request", async (req, res) => {
+      // Basic URL parsing to handle query params
+      const incomingUrl = new URL(req.url || "/", `http://localhost:${port}`);
+
+      if (incomingUrl.pathname === "/oauth-callback") {
+        const code = incomingUrl.searchParams.get("code");
+        const error = incomingUrl.searchParams.get("error");
+        const returnedState = incomingUrl.searchParams.get("state");
 
         res.setHeader("Content-Type", "text/html; charset=utf-8");
 
         if (error) {
           res.end(getErrorHtml(error));
-          server.close();
+          shutdown();
           reject(new Error(error));
+          return;
+        }
+
+        if (returnedState !== state) {
+          const errorMsg = "State mismatch (CSRF protection)";
+          res.end(getErrorHtml(errorMsg));
+          shutdown();
+          reject(new Error(errorMsg));
           return;
         }
 
         if (code) {
           res.end(getSuccessHtml());
-          server.close();
+          shutdown();
 
-          // 使用 .then/.catch 代替 async/await，避免在回调中使用 async
-          exchangeToken(code, verifier)
-            .then((tokens) => {
-              saveToken(tokens);
-              resolve(tokens);
-            })
-            .catch(reject);
+          try {
+            const tokens = await exchangeToken(code, verifier, redirectUri);
+            tokenPool.addToken(tokens);
+            console.log(`Successfully logged in as ${tokens.email}`);
+            resolve(tokens);
+          } catch (e) {
+            reject(e);
+          }
+        } else {
+          res.end(getErrorHtml("No code returned"));
+          shutdown();
+          reject(new Error("No code returned"));
         }
       }
     });
 
-    server.on("error", (err) => {
-      reject(new Error(`Failed to start OAuth server: ${err.message}`));
-    });
+    function shutdown() {
+      clearTimeout(timeout);
+      server.close();
+    }
 
-    server.listen(port, () => {
-      const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-      authUrl.searchParams.set("client_id", CLIENT_ID);
-      authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
-      authUrl.searchParams.set("response_type", "code");
-      authUrl.searchParams.set("scope", SCOPES.join(" "));
-      authUrl.searchParams.set("code_challenge", challenge);
-      authUrl.searchParams.set("code_challenge_method", "S256");
-      authUrl.searchParams.set("access_type", "offline");
+    const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    authUrl.searchParams.set("client_id", CLIENT_ID);
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("scope", SCOPES.join(" "));
+    authUrl.searchParams.set("code_challenge", challenge);
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("access_type", "offline");
+    authUrl.searchParams.set("state", state);
+    authUrl.searchParams.set("prompt", "consent"); // Force consent to ensure refresh_token
 
-      console.log("Opening browser for login...");
-      open(authUrl.toString());
-    });
+    console.log(`Opening browser for login (Port ${port})...`);
+    open(authUrl.toString());
   });
 }
 
-async function exchangeToken(code: string, verifier: string): Promise<TokenStore> {
+async function exchangeToken(
+  code: string,
+  verifier: string,
+  redirectUri: string,
+): Promise<TokenStore> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -147,7 +191,7 @@ async function exchangeToken(code: string, verifier: string): Promise<TokenStore
       client_secret: CLIENT_SECRET,
       code,
       grant_type: "authorization_code",
-      redirect_uri: REDIRECT_URI,
+      redirect_uri: redirectUri,
       code_verifier: verifier,
     }),
   });
@@ -159,7 +203,6 @@ async function exchangeToken(code: string, verifier: string): Promise<TokenStore
   const data = (await res.json()) as AntigravityTokenResponse;
   const now = Date.now();
 
-  // 获取用户信息以便获取邮箱
   let email = "";
   try {
     const userRes = await fetch("https://www.googleapis.com/oauth2/v1/userinfo?alt=json", {
@@ -171,11 +214,12 @@ async function exchangeToken(code: string, verifier: string): Promise<TokenStore
     }
   } catch (e) {}
 
-  // 解析项目 ID (尝试优先获取)
   let projectId = "";
   try {
     projectId = await fetchProjectID(data.access_token);
-  } catch (e) {}
+  } catch (e) {
+    console.warn("Failed to fetch Project ID initially:", e);
+  }
 
   return {
     access_token: data.access_token,
@@ -186,87 +230,60 @@ async function exchangeToken(code: string, verifier: string): Promise<TokenStore
   };
 }
 
-async function fetchProjectID(accessToken: string): Promise<string> {
-  const url = `${ANTIGRAVITY_ENDPOINT}/v1internal:loadCodeAssist`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "User-Agent": "antigravity/1.11.5 windows/amd64",
-      "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
-      "Client-Metadata":
-        '{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}',
-    },
-    body: JSON.stringify({
-      metadata: {
-        ideType: "IDE_UNSPECIFIED",
-        platform: "PLATFORM_UNSPECIFIED",
-        pluginType: "GEMINI",
-      },
-    }),
-  });
+export async function fetchProjectID(accessToken: string): Promise<string> {
+  let lastError: unknown;
 
-  if (res.ok) {
-    const data = (await res.json()) as LoadCodeAssistResponse;
-    if (typeof data.cloudaicompanionProject === "string") {
-      return data.cloudaicompanionProject || "";
+  // Try each endpoint with timeout
+  for (const baseUrl of ANTIGRAVITY_ENDPOINTS) {
+    const url = `${baseUrl}/v1internal:loadCodeAssist`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          ...COMMON_HEADERS,
+        },
+        body: JSON.stringify({
+          metadata: {
+            ideType: "IDE_UNSPECIFIED",
+            platform: "PLATFORM_UNSPECIFIED",
+            pluginType: "GEMINI",
+          },
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (res.ok) {
+        const data = (await res.json()) as LoadCodeAssistResponse;
+        const pid =
+          typeof data.cloudaicompanionProject === "string"
+            ? data.cloudaicompanionProject
+            : data.cloudaicompanionProject?.id;
+
+        if (pid) return pid;
+      } else {
+        // If 403/401, probably no point trying other endpoints, but let's be safe and try all for 5xx
+        console.warn(`fetchProjectID failed at ${baseUrl}: ${res.status}`);
+      }
+    } catch (e) {
+      clearTimeout(timeout);
+      lastError = e;
+      console.warn(`fetchProjectID network error at ${baseUrl}:`, e);
     }
-    return data.cloudaicompanionProject?.id || "";
   }
-  return "";
+
+  throw lastError || new Error("Failed to fetch ProjectID from all endpoints");
 }
 
-export function saveToken(token: TokenStore) {
-  writeFileSync(getTokenFilePath(), JSON.stringify(token, null, 2));
-}
-
-export function loadToken(): TokenStore | null {
-  // 尝试迁移旧 Token
-  migrateOldToken();
-
-  const path = getTokenFilePath();
-  if (!existsSync(path)) return null;
-  try {
-    return JSON.parse(readFileSync(path, "utf-8"));
-  } catch {
-    return null;
-  }
-}
-
+// Wrapper for backward compatibility if needed, but preferably use tokenPool directly
 export async function getAccessToken(): Promise<string> {
-  const token = loadToken();
-  if (!token) throw new Error("Not logged in");
-
-  if (Date.now() < token.expires_at - 60000) {
-    return token.access_token;
-  }
-
-  // 刷新 Token
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
-      refresh_token: token.refresh_token,
-      grant_type: "refresh_token",
-    }),
-  });
-
-  if (!res.ok) throw new Error("Failed to refresh token");
-  const data = (await res.json()) as AntigravityTokenResponse;
-
-  const newToken: TokenStore = {
-    ...token,
-    access_token: data.access_token,
-    expires_at: Date.now() + data.expires_in * 1000,
-    // 如果返回了新的 refresh token 则更新
-    refresh_token: data.refresh_token || token.refresh_token,
-  };
-
-  saveToken(newToken);
-  return newToken.access_token;
+  const { token } = await tokenPool.getAccessToken();
+  return token;
 }
 
 // ============ HTML Templates ============
