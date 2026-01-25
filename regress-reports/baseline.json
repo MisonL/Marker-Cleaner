@@ -2,11 +2,31 @@
   "1层跨层板，1层生熟未分开，蛋类未集中陈列1.jpg": {
     "changedPixels": 40170,
     "fallbackPixels": 5650,
-    "durationMs": 1053
+    "durationMs": 1689
   },
   "1层跨层板，1层生熟未分开，冷藏蔬菜未集中陈列1.jpg": {
     "changedPixels": 46637,
     "fallbackPixels": 8281,
-    "durationMs": 1272
+    "durationMs": 1180
+  },
+  "1层跨层板，1层生熟未分开4.jpg": {
+    "changedPixels": 84930,
+    "fallbackPixels": 58073,
+    "durationMs": 3111
+  },
+  "1层跨层板，1层生熟未分开2.jpg": {
+    "changedPixels": 16361,
+    "fallbackPixels": 5824,
+    "durationMs": 645
+  },
+  "1层跨层板，1层生熟未分开3.jpg": {
+    "changedPixels": 16960,
+    "fallbackPixels": 9553,
+    "durationMs": 739
+  },
+  "1层跨层板，1层生熟未分开1.jpg": {
+    "changedPixels": 94491,
+    "fallbackPixels": 55017,
+    "durationMs": 3495
   }
 }
