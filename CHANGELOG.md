@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-01-25
+
+**Refactoring & Stability Milestone / 重构与稳定性里程碑**
+
+本次更新完成了核心算法模块的深度重构，引入了工业级的回归测试门禁 (Regression Gate)，显著提升了代码的可维护性与算法迭代的安全性。
+
+### 🏗️ 架构与工程化 (Architecture)
+
+- **模块化重构**: 将 `cleaner.ts` 拆解为 `Core`, `Detectors`, `Utils` 三层架构，逻辑解耦，职责分明。
+- **回归测试 V2.0**: 引入 `baseline.json` 机制，覆盖 50+ 典型样本的全量门禁，杜绝算法“静默劣化”。
+- **全量单元测试**: 新增细粒度单元测试 (Core/Detectors)，整体测试覆盖率达到 100% (Pass rate 53/53)。
+- **代码规范**: 全项目接入 Biome 及其严格的 Lint 规则，统一代码风格，消除潜在风险。
+
+### ✨ 优化 (Optimizations)
+
+- **性能提升**: 优化了 `batch-processor` 的任务去重逻辑 (O(n²) -> O(n))，在大批量任务下响应更快。
+- **配置增强**: 关键算法阈值 (如 `HUGE_BOX_AREA_RATIO`) 实现常量化管理，便于后续调优。
+- **类型安全**: 修复了多处潜在的 `any` 类型风险与空值隐患。
+
+---
+
 ## [1.1.0] - 2026-01-23
 
 **Experience Upgrade / 体验大幅升级**

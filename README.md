@@ -192,6 +192,44 @@ bun run build:win
 
 ---
 
+## 💻 开发指南 (Development)
+
+### 模块化架构
+
+本项目采用高内聚低耦合的模块化设计 (`src/lib/cleaner/`)：
+
+- **`core/`**: 核心调度引擎、修复算法 (Inpaint/Smooth)
+- **`detectors/`**: 智能检测器 (Mask/Stroke/Box)
+- **`utils/`**: 图像处理基础工具集
+
+### 常用指令
+
+```bash
+# 启动开发服务器
+bun run dev
+
+# 运行全量测试 (53 tests)
+bun test
+
+# 运行回归测试 (Regression Suite V2)
+# 自动比对 baseline.json，确保算法无劣化
+bun run regress
+
+# 更新回归基准 (慎用)
+bun run regress --update-baseline
+
+# 代码风格检查与修复
+bun run lint      # Check
+bun run lint:fix  # Fix
+```
+
+### 贡献规范
+
+- **Linting**: 提交前请确保运行 `bun run lint` 通过，本项目使用 Biome 进行极其严格的代码审查。
+- **Testing**: 涉及算法变更时，必须通过 `bun test` 和 `bun run regress`。
+
+---
+
 ## ❓ 故障排除
 
 **Q: Windows 启动或使用功能时报错 `Sharp module is required`？**
