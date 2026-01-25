@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { Config } from "../config-manager";
 import type { AIProvider, BoundingBox, ProcessResult } from "../types";
-import { detectMimeType, getPlatformInfo, parseBoxesFromText, sleep } from "../utils";
+import {
+  detectMimeType,
+  getPlatformInfo,
+  isExplicitEmptyBoxesResponse,
+  parseBoxesFromText,
+  sleep,
+} from "../utils";
 import { getAccessToken } from "./auth";
 import {
   ANTIGRAVITY_ENDPOINT,
@@ -349,6 +355,16 @@ export class AntigravityProvider implements AIProvider {
           return {
             success: true,
             boxes,
+            inputTokens,
+            outputTokens,
+          };
+        }
+
+        // 明确空结果：视为无需清理
+        if (isExplicitEmptyBoxesResponse(part.text)) {
+          return {
+            success: true,
+            boxes: [],
             inputTokens,
             outputTokens,
           };

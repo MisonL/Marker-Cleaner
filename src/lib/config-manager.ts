@@ -10,17 +10,22 @@ const PricingSchema = z.object({
   imageOutput: z.number().default(0.039),
 });
 
+const LEGACY_DETECT_PROMPT_V1 =
+  "请识别图中所有人工添加的彩色矩形标记框（通常是红色、橙色或黄色的细线边框），返回它们的边界框坐标。格式：JSON 数组 [{ymin, xmin, ymax, xmax}]，坐标为相对值(0-1)。";
+
+const DETECT_PROMPT_V2_PREV =
+  '请识别图中所有人工添加的彩色标记框（如红色、橙色、黄色的细线矩形）。输出严格 JSON（不要 Markdown，不要解释）：{"boxes":[{"ymin":0,"xmin":0,"ymax":0,"xmax":0}]}。坐标使用 0-1000 整数；y 为纵向、x 为横向；ymin/xmin 为左上，ymax/xmax 为右下。注意：1）框位略大，完整覆盖边框线条与边缘阴影；2）扫描全图，不要漏检微小/模糊标记；3）如未发现标记框，返回 {"boxes":[]}。';
+
+const DETECT_PROMPT_V3 =
+  '请识别图中所有人工添加的彩色标记框（如红色、橙色、黄色的细线矩形）。输出严格 JSON（不要 Markdown，不要解释）：{"boxes":[{"ymin":0,"xmin":0,"ymax":0,"xmax":0}]}。坐标使用 0-1000 整数；y 为纵向、x 为横向；ymin/xmin 为左上，ymax/xmax 为右下。注意：1）框尽量贴近边框线条（可略大以覆盖边缘阴影），不要过大覆盖大量内容；2）扫描全图，不要漏检微小/模糊标记；3）如未发现标记框，返回 {"boxes":[]}。';
+
 const PromptsSchema = z.object({
   edit: z
     .string()
     .default(
       "请移除图中所有手动添加的彩色矩形标记框（通常是红色、橙色或黄色的细线边框），保持背景内容完整不变。直接返回处理后的图片。",
     ),
-  detect: z
-    .string()
-    .default(
-      "请识别图中所有人工添加的彩色矩形标记框（通常是红色、橙色或黄色的细线边框），返回它们的边界框坐标。格式：JSON 数组 [{ymin, xmin, ymax, xmax}]，坐标为相对值(0-1)。",
-    ),
+  detect: z.string().default(DETECT_PROMPT_V3),
 });
 
 const ProviderSettingsSchema = z.object({
@@ -79,8 +84,7 @@ export const ConfigSchema = z.object({
   // Prompt 配置
   prompts: PromptsSchema.default({
     edit: "请移除图中所有手动添加的彩色矩形标记框（通常是红色、橙色或黄色的细线边框），保持背景内容完整不变。直接返回处理后的图片。",
-    detect:
-      "请识别图中所有人工添加的彩色矩形标记框（通常是红色、橙色或黄色的细线边框），返回它们的边界框坐标。格式：JSON 数组 [{ymin, xmin, ymax, xmax}]，坐标为相对值(0-1)。",
+    detect: DETECT_PROMPT_V3,
   }),
 
   // 输出配置
@@ -211,6 +215,28 @@ export function loadConfig(): Config {
 
     const result = ConfigSchema.safeParse(parsed);
     if (result.success) {
+      // 轻量迁移：把旧版默认 Prompt 升级为“严格 JSON + 0-1000”的新版，提升模型稳定性
+      // 并避免“框过大”导致 Detection 本地修复误伤或熔断
+      const needsUpgrade =
+        !result.data.prompts?.detect ||
+        result.data.prompts.detect === LEGACY_DETECT_PROMPT_V1 ||
+        result.data.prompts.detect === DETECT_PROMPT_V2_PREV ||
+        // 启发式：如果 detect prompt 中没有包含 V3 的核心改进短语，则视为旧版
+        (!result.data.prompts.detect.includes("框尽量贴近") &&
+          !result.data.prompts.detect.includes("覆盖边缘阴影"));
+
+      if (needsUpgrade) {
+        const upgraded = {
+          ...result.data,
+          prompts: { ...result.data.prompts, detect: DETECT_PROMPT_V3 },
+        };
+        try {
+          saveConfig(upgraded);
+        } catch {
+          // ignore write failure, still return upgraded in-memory config
+        }
+        return upgraded;
+      }
       return result.data;
     }
 

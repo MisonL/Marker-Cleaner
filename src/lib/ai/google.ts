@@ -6,7 +6,7 @@ import {
 } from "@google/generative-ai";
 import type { Config } from "../config-manager";
 import type { AIProvider, ProcessResult } from "../types";
-import { detectMimeType, parseBoxesFromText, sleep } from "../utils";
+import { detectMimeType, isExplicitEmptyBoxesResponse, parseBoxesFromText, sleep } from "../utils";
 
 export class GoogleProvider implements AIProvider {
   readonly name = "Google Gemini";
@@ -126,6 +126,16 @@ export class GoogleProvider implements AIProvider {
           return {
             success: true,
             boxes,
+            inputTokens,
+            outputTokens,
+          };
+        }
+
+        // 明确空结果：视为无需清理
+        if (isExplicitEmptyBoxesResponse(text)) {
+          return {
+            success: true,
+            boxes: [],
             inputTokens,
             outputTokens,
           };

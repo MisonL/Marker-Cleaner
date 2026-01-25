@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import type { Config } from "../config-manager";
 import type { AIProvider, ProcessResult } from "../types";
-import { detectMimeType, parseBoxesFromText, sleep } from "../utils";
+import { detectMimeType, isExplicitEmptyBoxesResponse, parseBoxesFromText, sleep } from "../utils";
 
 export class OpenAIProvider implements AIProvider {
   readonly name = "OpenAI Compatible";
@@ -24,8 +24,18 @@ export class OpenAIProvider implements AIProvider {
       const base64 = imageBuffer.toString("base64");
       const mimeType = detectMimeType(imageBuffer);
 
+      const systemInstruction = [
+        "你是一个严格的 JSON 输出器，只能输出 JSON，不能输出 Markdown、解释、注释或多余字符。",
+        "你的任务：识别图片中所有人工添加的彩色矩形标记框（常见为红/橙/黄等细线框），并输出它们的边界框。",
+        '输出格式必须为：{"boxes":[{"ymin":0,"xmin":0,"ymax":0,"xmax":0}]}',
+        "坐标使用 0-1000 的整数：x 为横向，y 为纵向；ymin/xmin 为左上角，ymax/xmax 为右下角。",
+        "必须扫描全图，不要漏掉小的/模糊的/边缘处的标记框；框尽量贴近边框线条（可略大以覆盖边缘阴影），不要过大覆盖大量内容。",
+        '如果未发现标记框，输出 {"boxes":[]}。',
+      ].join("\n");
+
       let lastError: unknown;
       const maxRetries = 3;
+      let useJsonResponseFormat = true;
 
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
@@ -34,27 +44,57 @@ export class OpenAIProvider implements AIProvider {
             await sleep(delay);
           }
 
-          const response = await this.client.chat.completions.create({
-            model: this.modelName,
-            messages: [
-              {
-                role: "user",
-                content: [
-                  {
-                    type: "image_url",
-                    image_url: {
-                      url: `data:${mimeType};base64,${base64}`,
+          const response = await this.client.chat.completions.create(
+            useJsonResponseFormat
+              ? {
+                  model: this.modelName,
+                  messages: [
+                    { role: "system", content: systemInstruction },
+                    {
+                      role: "user",
+                      content: [
+                        {
+                          type: "image_url",
+                          image_url: {
+                            url: `data:${mimeType};base64,${base64}`,
+                          },
+                        },
+                        {
+                          type: "text",
+                          text: prompt,
+                        },
+                      ],
                     },
-                  },
-                  {
-                    type: "text",
-                    text: prompt,
-                  },
-                ],
-              },
-            ],
-            max_tokens: 1024,
-          });
+                  ],
+                  // Qwen3-VL-Plus 在“全图扫描+多框”场景容易输出较长，过小会导致 JSON 截断
+                  max_tokens: 2048,
+                  temperature: 0,
+                  response_format: { type: "json_object" },
+                }
+              : {
+                  model: this.modelName,
+                  messages: [
+                    { role: "system", content: systemInstruction },
+                    {
+                      role: "user",
+                      content: [
+                        {
+                          type: "image_url",
+                          image_url: {
+                            url: `data:${mimeType};base64,${base64}`,
+                          },
+                        },
+                        {
+                          type: "text",
+                          text: prompt,
+                        },
+                      ],
+                    },
+                  ],
+                  max_tokens: 2048,
+                  temperature: 0,
+                },
+          );
 
           return this.parseResponse(response);
           // biome-ignore lint/suspicious/noExplicitAny: error handling
@@ -63,6 +103,18 @@ export class OpenAIProvider implements AIProvider {
           lastError = error;
           const status = error?.status || error?.response?.status;
           const message = error?.message || String(error);
+
+          const responseFormatUnsupported =
+            status === 400 &&
+            (message.toLowerCase().includes("response_format") ||
+              message.toLowerCase().includes("json_object") ||
+              message.toLowerCase().includes("unsupported") ||
+              message.toLowerCase().includes("not supported"));
+
+          if (responseFormatUnsupported && useJsonResponseFormat) {
+            useJsonResponseFormat = false;
+            continue;
+          }
 
           const isRetryable =
             status === 429 ||
@@ -104,6 +156,16 @@ export class OpenAIProvider implements AIProvider {
       return {
         success: true,
         boxes,
+        inputTokens,
+        outputTokens,
+      };
+    }
+
+    // 明确返回空结果：视为“无需清理”，交给上层保持原图
+    if (isExplicitEmptyBoxesResponse(content)) {
+      return {
+        success: true,
+        boxes: [],
         inputTokens,
         outputTokens,
       };
