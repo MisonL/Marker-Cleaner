@@ -64,6 +64,11 @@ export const REPORT_TEMPLATE = `<!DOCTYPE html>
         .img-container { position: relative; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; background: #eee; background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%); background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0px; }
         img { width: 100%; height: auto; display: block; }
         .img-label { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6); color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+        .img-open { position: absolute; bottom: 10px; left: 10px; background: rgba(255,255,255,0.9); color: var(--primary); padding: 2px 8px; border-radius: 4px; font-size: 12px; text-decoration: none; border: 1px solid rgba(0,0,0,0.08); }
+        .img-open:hover { text-decoration: underline; }
+        @media (prefers-color-scheme: dark) {
+            .img-open { background: rgba(0,0,0,0.6); color: #9ec5fe; border-color: rgba(255,255,255,0.15); }
+        }
         
         .item-footer { padding: 10px 20px; font-size: 13px; color: #888; border-top: 1px solid var(--border); display: flex; gap: 20px; }
         .error-msg { padding: 20px; color: var(--danger); font-family: monospace; }

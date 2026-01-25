@@ -1,5 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import pLimit from "p-limit";
 import { REPORT_TEMPLATE } from "./assets/report-template";
 import { formatDuration } from "./utils";
@@ -112,6 +113,13 @@ export async function generateHtmlReport(
             const beforeUri = await safeReadThumbnail(item.absoluteInputPath);
             const afterUri = await safeReadThumbnail(item.absoluteOutputPath);
 
+            const beforeFileUrl = item.absoluteInputPath
+              ? pathToFileURL(item.absoluteInputPath).toString()
+              : "";
+            const afterFileUrl = item.absoluteOutputPath
+              ? pathToFileURL(item.absoluteOutputPath).toString()
+              : "";
+
             return `
     <div class="item-card" id="item-${idx}">
         <div class="item-header">
@@ -121,11 +129,13 @@ export async function generateHtmlReport(
         <div class="image-comparison">
             <div class="img-container">
                 <div class="img-label">处理前 (缩略图)</div>
-                <img src="${beforeUri}" />
+                <img src="${beforeUri}" loading="lazy" />
+                ${beforeFileUrl ? `<a class="img-open" href="${beforeFileUrl}" target="_blank" rel="noopener noreferrer">打开原图</a>` : ""}
             </div>
             <div class="img-container">
                 <div class="img-label">处理后 (缩略图)</div>
-                <img src="${afterUri}" />
+                <img src="${afterUri}" loading="lazy" />
+                ${afterFileUrl ? `<a class="img-open" href="${afterFileUrl}" target="_blank" rel="noopener noreferrer">打开输出图</a>` : ""}
             </div>
         </div>
         <div class="item-footer">

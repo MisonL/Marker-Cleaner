@@ -61,6 +61,25 @@ export class BatchProcessor {
   }
 
   /**
+   * 获取当前历史总成本
+   */
+  getTotalCost(): number {
+    return this.progress.totalCost;
+  }
+
+  /**
+   * 重置历史总成本
+   */
+  resetCost(): void {
+    this.progress.totalCost = 0;
+    this.progress.totalInputTokens = 0;
+    this.progress.totalOutputTokens = 0;
+    this.progress.totalImageOutputs = 0;
+    saveProgress(this.progress);
+    this.onCostUpdate?.(0);
+  }
+
+  /**
    * 扫描输入目录，获取所有待处理的图片任务
    */
   scanTasks(): BatchTask[] {
@@ -143,9 +162,74 @@ export class BatchProcessor {
   /**
    * 过滤已处理的任务
    */
+  /**
+   * 检查任务的输出文件是否存在（支持模糊匹配时间戳）
+   */
+  private checkOutputExists(task: BatchTask): boolean {
+    const outputDir = dirname(task.absoluteOutputPath);
+    if (!existsSync(outputDir)) return false;
+
+    const ext = extname(task.relativePath);
+    const baseName = basename(task.relativePath, ext);
+    const targetExt = getOutputExtension(this.config.outputFormat, ext);
+
+    // 构建前缀：baseName + 用户配置的后缀 (不含自动生成的时间戳)
+    const ruleSuffix = this.config.renameRules.enabled ? this.config.renameRules.suffix : "";
+    const prefix = baseName + ruleSuffix;
+
+    try {
+      const files = readdirSync(outputDir);
+      // 匹配规则：文件名必须以 prefix 开头，以 targetExt 结尾
+      // 中间部分可以是空（无时间戳）或 _YYYYMMDD_HHMMSS
+      return files.some((file) => {
+        if (!file.toLowerCase().endsWith(targetExt.toLowerCase())) return false;
+        if (!file.startsWith(prefix)) return false;
+
+        // 截取中间部分
+        const mid = file.slice(prefix.length, file.length - targetExt.length);
+        // 1. 完全匹配（无时间戳）
+        if (mid === "") return true;
+        // 2. 匹配时间戳格式 _20240101_120000
+        return /^_\d{8}_\d{6}$/.test(mid);
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * 过滤已处理的任务（增加文件存在性双重校验）
+   */
   filterPendingTasks(tasks: BatchTask[]): BatchTask[] {
     const processed = new Set(this.progress.processedFiles);
-    return tasks.filter((task) => !processed.has(task.relativePath));
+    const actuallyPending: BatchTask[] = [];
+    const staleEntries = new Set<string>();
+
+    for (const task of tasks) {
+      if (processed.has(task.relativePath)) {
+        // 记录显示已完成，校验物理文件是否存在
+        if (this.checkOutputExists(task)) {
+          // 文件存在，确实已完成，跳过
+        } else {
+          // 文件不存在，视为未完成（历史记录失效）
+          staleEntries.add(task.relativePath);
+          actuallyPending.push(task);
+        }
+      } else {
+        actuallyPending.push(task);
+      }
+    }
+
+    // 自动清理无效的历史进度，保持状态一致性
+    if (staleEntries.size > 0) {
+      this.progress.processedFiles = this.progress.processedFiles.filter(
+        (p) => !staleEntries.has(p),
+      );
+      saveProgress(this.progress);
+      this.logger.debug(`🧹 清理了 ${staleEntries.size} 条无效的历史进度记录`);
+    }
+
+    return actuallyPending;
   }
 
   /**
@@ -161,6 +245,7 @@ export class BatchProcessor {
     totalFailed: number;
     totalCost: number;
     totalTokens: { input: number; output: number };
+    failedTasks: BatchTask[];
   }> {
     this.isCancelled = false; // 重置取消状态
     const pendingTasks = previewOnly ? tasks.slice(0, this.config.previewCount) : tasks;
@@ -172,6 +257,7 @@ export class BatchProcessor {
     let sessionOutputTokens = 0;
     let successCount = 0;
     let failedCount = 0;
+    const failedTasks: BatchTask[] = [];
 
     this.reportData = [];
     this.onCostUpdate?.(this.progress.totalCost); // 初始化显示当前全局成本
@@ -295,6 +381,7 @@ export class BatchProcessor {
         } catch (error) {
           this.logger.error(`处理失败: ${task.relativePath} - ${error}`);
           failedCount++;
+          failedTasks.push(task);
           this.reportData.push({
             file: task.relativePath,
             success: false,
@@ -320,6 +407,7 @@ export class BatchProcessor {
       totalFailed: failedCount,
       totalCost: sessionCostDelta, // 修改：返回本次会话增量
       totalTokens: { input: sessionInputTokens, output: sessionOutputTokens },
+      failedTasks,
     };
   }
 
@@ -414,7 +502,17 @@ export class BatchProcessor {
     } else if (result.boxes && result.boxes.length > 0) {
       // Detection 模式：本地修复
       this.logger.debug(`检测到 ${result.boxes.length} 个标记区域，执行本地修复`);
-      outputBuffer = await cleanMarkersLocal(inputBuffer, result.boxes);
+      if (this.config.debugLog) {
+        const compact = result.boxes.map((b) => ({
+          ymin: Number(b.ymin.toFixed(4)),
+          xmin: Number(b.xmin.toFixed(4)),
+          ymax: Number(b.ymax.toFixed(4)),
+          xmax: Number(b.xmax.toFixed(4)),
+        }));
+        this.logger.debug(`Boxes: ${JSON.stringify(compact)}`);
+      }
+      const cleanResult = await cleanMarkersLocal(inputBuffer, result.boxes);
+      outputBuffer = cleanResult.outputBuffer;
     } else {
       // 没有检测到标记，直接复制原图
       this.logger.debug("未检测到标记，保持原图");

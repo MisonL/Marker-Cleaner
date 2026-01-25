@@ -1,3 +1,16 @@
+// 图像清理统计指标 (用于回归套件)
+export interface CleanerStats {
+  changedPixels: number; // 总共修改的像素数
+  fallbackPixels: number; // 触发 fallback 兜底填充的像素数
+  totalPixels: number; // 图片总像素
+  durationMs: number; // 纯算法执行耗时
+}
+
+export interface CleanerResult {
+  outputBuffer: Buffer;
+  stats: CleanerStats;
+}
+
 // AI Provider 通用接口
 export interface BoundingBox {
   ymin: number;

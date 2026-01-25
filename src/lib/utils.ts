@@ -67,32 +67,38 @@ export function parseBoxesFromText(text: string): Array<{
   xmax: number;
 }> {
   try {
-    // 1. 提取最可能的 JSON 数组部分
+    // 针对 Qwen 等模型，优先清理常见的 Markdown 包裹
+    const cleanedText = text
+      .replace(/```json\s*/gi, "")
+      .replace(/```\s*/g, "")
+      .trim();
+
+    // 1. 尝试寻找最外层的 [ ] 结构
     let jsonContent = "";
-    const jsonMatch = text.match(/\[[\s\S]*?\]/);
-    if (jsonMatch) {
-      jsonContent = jsonMatch[0];
+    const firstBracket = cleanedText.indexOf("[");
+    const lastBracket = cleanedText.lastIndexOf("]");
+
+    if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+      jsonContent = cleanedText.slice(firstBracket, lastBracket + 1);
     } else {
-      // 尝试匹配未闭合的左括号开始的部分
-      const startIndex = text.indexOf("[");
-      if (startIndex !== -1) {
-        jsonContent = text.slice(startIndex);
+      // 降级策略：如果没有数组结构，尝试寻找对象结构 { }
+      const firstBrace = cleanedText.indexOf("{");
+      const lastBrace = cleanedText.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        // 包装成数组处理
+        jsonContent = `[${cleanedText.slice(firstBrace, lastBrace + 1)}]`;
       }
     }
 
     if (!jsonContent) return [];
 
-    // 2. 尝试清洗 JSON (处理可能出现的截断或多余逗号)
+    // 2. 尝试清洗和补全 JSON
     let cleaned = jsonContent.trim();
-    // 移除末尾可能的非 JSON 字符（如Markdown代码块结束符）
-    cleaned = cleaned.replace(/`+$/, "").trim();
 
-    // 处理截断：如果以逗号结尾，尝试移除
-    if (cleaned.endsWith(",")) {
-      cleaned = cleaned.slice(0, -1);
-    }
+    // 修复常见的尾随逗号和非法字符
+    cleaned = cleaned.replace(/,\s*([\]\}])/g, "$1");
 
-    // 处理未闭合的括号
+    // 平衡括号补全逻辑
     const openBrackets = (cleaned.match(/\[/g) || []).length;
     const closeBrackets = (cleaned.match(/\]/g) || []).length;
     if (openBrackets > closeBrackets) {
@@ -101,38 +107,29 @@ export function parseBoxesFromText(text: string): Array<{
     const openCurly = (cleaned.match(/\{/g) || []).length;
     const closeCurly = (cleaned.match(/\}/g) || []).length;
     if (openCurly > closeCurly) {
-      // 检查当前最后是否正在写一个对象，如果是，补齐
-      if (!cleaned.endsWith("}") && !cleaned.endsWith("]")) {
-        cleaned += "}";
-      }
-      if ((cleaned.match(/\{/g) || []).length > (cleaned.match(/\}/g) || []).length) {
-        cleaned += "}".repeat(openCurly - (cleaned.match(/\}/g) || []).length);
-      }
+      cleaned += "}".repeat(openCurly - closeCurly);
     }
-
-    // 再次递归修复可能的非法尾随逗号 (e.g., [...,])
-    cleaned = cleaned.replace(/,\s*\]/g, "]").replace(/,\s*\}/g, "}");
 
     // biome-ignore lint/suspicious/noExplicitAny: recover from broken JSON
     let parsed: any[];
     try {
-      parsed = JSON.parse(cleaned) as unknown[];
+      parsed = JSON.parse(cleaned);
     } catch (e) {
-      // 3. 解析失败：最后的杀手锏 - 使用正则强行提取所有像 {...} 的对象
-      // biome-ignore lint/suspicious/noExplicitAny: fallback extraction
-      const objects: any[] = [];
-      const objectMatches = cleaned.match(/\{[\s\S]*?\}/g);
-      if (objectMatches) {
-        for (const objStr of objectMatches) {
+      // 3. 杀手锏：正则提取所有有效对象
+      const objects: Array<Record<string, unknown>> = [];
+      const objectRegex = /\{[^{}]*("ymin"|"xmin"|"ymax"|"xmax"|"bbox_2d")[^{}]*\}/g;
+      const matches = cleaned.match(objectRegex);
+      if (matches) {
+        for (const m of matches) {
           try {
-            // 尝试对单个对象进行简单的闭合修复后解析
-            let singleObj = objStr.trim();
-            const openC = (singleObj.match(/\{/g) || []).length;
-            const closeC = (singleObj.match(/\}/g) || []).length;
-            if (openC > closeC) singleObj += "}".repeat(openC - closeC);
-            objects.push(JSON.parse(singleObj));
+            // 对每个匹配到的潜在对象尝试补齐并解析
+            let objStr = m.trim();
+            const o = (objStr.match(/\{/g) || []).length;
+            const c = (objStr.match(/\}/g) || []).length;
+            if (o > c) objStr += "}".repeat(o - c);
+            objects.push(JSON.parse(objStr));
           } catch {
-            // 忽略单个无法解析的对象
+            /* ignore */
           }
         }
       }
@@ -143,11 +140,62 @@ export function parseBoxesFromText(text: string): Array<{
       }
     }
 
-    if (!Array.isArray(parsed)) return [];
+    if (!Array.isArray(parsed)) {
+      parsed = [parsed]; // 强制转为数组
+    }
+
+    // 兼容：模型可能直接输出单个 bbox 数组，例如 [xmin, ymin, xmax, ymax]
+    // 这时 parsed 已经是 number[]，需要包装成二维数组以走统一分支
+    if (
+      parsed.length >= 4 &&
+      typeof parsed[0] === "number" &&
+      typeof parsed[1] === "number" &&
+      typeof parsed[2] === "number" &&
+      typeof parsed[3] === "number"
+    ) {
+      parsed = [parsed];
+    }
+
+    // 坐标智能归一化 (针对 Qwen2/3-VL 常用 0-1000 坐标系)
+    // 如果数值大于 2，且没有大于 1005 (允许微小溢出)，则认为是在 1000 坐标系
+    const normalize = (val: number) => {
+      let out = val;
+      if (out > 2 && out <= 1005) out = out / 1000;
+      // 防御式裁剪：避免坐标越界导致后续处理跳过/误伤
+      if (out < 0) out = 0;
+      if (out > 1) out = 1;
+      return out;
+    };
+
+    const makeBox = (y1: number, x1: number, y2: number, x2: number) => {
+      if (![y1, x1, y2, x2].every((n) => Number.isFinite(n))) return null;
+      const ymin = normalize(Math.min(y1, y2));
+      const ymax = normalize(Math.max(y1, y2));
+      const xmin = normalize(Math.min(x1, x2));
+      const xmax = normalize(Math.max(x1, x2));
+      if (!(ymax > ymin && xmax > xmin)) return null;
+      return { ymin, xmin, ymax, xmax };
+    };
+
+    const parseArrayBox = (arr: unknown, mode: "yx" | "xy") => {
+      if (!Array.isArray(arr) || arr.length < 4) return null;
+      const v = arr.slice(0, 4).map((n) => Number(n));
+      if (v.some((n) => !Number.isFinite(n))) return null;
+      const v1 = v[0];
+      const v2 = v[1];
+      const v3 = v[2];
+      const v4 = v[3];
+      if (v1 === undefined || v2 === undefined || v3 === undefined || v4 === undefined) return null;
+      if (![v1, v2, v3, v4].every((n) => typeof n === "number" && Number.isFinite(n))) return null;
+      // yx: [ymin, xmin, ymax, xmax]
+      if (mode === "yx") return makeBox(v1, v2, v3, v4);
+      // xy: [xmin, ymin, xmax, ymax]
+      return makeBox(v2, v1, v4, v3);
+    };
 
     return parsed
-      .map((item: any) => {
-        // 1. 标准格式 {ymin, xmin, ymax, xmax}
+      .flatMap((item: Record<string, unknown>) => {
+        // 1) 显式键值对：必须都是可解析数字，否则降级为数组容错逻辑
         if (
           typeof item === "object" &&
           item !== null &&
@@ -156,30 +204,57 @@ export function parseBoxesFromText(text: string): Array<{
           "ymax" in item &&
           "xmax" in item
         ) {
-          return {
-            ymin: Number(item.ymin),
-            xmin: Number(item.xmin),
-            ymax: Number(item.ymax),
-            xmax: Number(item.xmax),
-          };
+          const y1 = Number(item.ymin);
+          const x1 = Number(item.xmin);
+          const y2 = Number(item.ymax);
+          const x2 = Number(item.xmax);
+          const direct = makeBox(y1, x1, y2, x2);
+          if (direct) return [direct];
+          // 若值不是数字（例如数组），继续走数组容错分支
         }
-        // 2. Qwen-VL 等常用格式 {bbox_2d: [y1, x1, y2, x2]}
-        if (
-          typeof item === "object" &&
-          item !== null &&
-          "bbox_2d" in item &&
-          Array.isArray(item.bbox_2d) &&
-          item.bbox_2d.length === 4
-        ) {
-          const [ymin, xmin, ymax, xmax] = item.bbox_2d;
-          return {
-            ymin: Number(ymin),
-            xmin: Number(xmin),
-            ymax: Number(ymax),
-            xmax: Number(xmax),
-          };
+
+        // 2) bbox_2d / 裸数组
+        if (Array.isArray(item)) {
+          const box = parseArrayBox(item, "xy");
+          return box ? [box] : [];
         }
-        return null;
+        if (typeof item === "object" && item !== null && "bbox_2d" in item) {
+          const box = parseArrayBox((item as { bbox_2d: unknown }).bbox_2d, "xy");
+          return box ? [box] : [];
+        }
+
+        // 3) 极端容错：模型把 bbox 数组塞进 ymin/xmin/ymax/xmax 字段（实测 qwen3-vl-plus 会这样“穿模”）
+        if (typeof item === "object" && item !== null) {
+          const candidates: Array<{ key: "ymin" | "xmin" | "ymax" | "xmax"; value: unknown }> = [];
+          for (const key of ["ymin", "xmin", "ymax", "xmax"] as const) {
+            if (key in item && Array.isArray((item as Record<string, unknown>)[key])) {
+              candidates.push({ key, value: (item as Record<string, unknown>)[key] });
+            }
+          }
+
+          if (candidates.length > 0) {
+            const out: Array<{ ymin: number; xmin: number; ymax: number; xmax: number }> = [];
+            for (const c of candidates) {
+              // key 是 ymin/ymax 时，更倾向于 [ymin,xmin,ymax,xmax]
+              // key 是 xmin/xmax 时，更倾向于 [xmin,ymin,xmax,ymax]
+              const preferred = c.key === "ymin" || c.key === "ymax" ? "yx" : "xy";
+              const box = parseArrayBox(c.value, preferred);
+              if (box) out.push(box);
+            }
+            // 去重（避免同一个 bbox 被重复塞到多个字段时出现重复框）
+            const uniq = new Map<
+              string,
+              { ymin: number; xmin: number; ymax: number; xmax: number }
+            >();
+            for (const b of out) {
+              const k = `${b.ymin.toFixed(4)}:${b.xmin.toFixed(4)}:${b.ymax.toFixed(4)}:${b.xmax.toFixed(4)}`;
+              uniq.set(k, b);
+            }
+            return Array.from(uniq.values());
+          }
+        }
+
+        return [];
       })
       .filter((item): item is { ymin: number; xmin: number; ymax: number; xmax: number } => {
         return (
@@ -187,12 +262,44 @@ export function parseBoxesFromText(text: string): Array<{
           !Number.isNaN(item.ymin) &&
           !Number.isNaN(item.xmin) &&
           !Number.isNaN(item.ymax) &&
-          !Number.isNaN(item.xmax)
+          !Number.isNaN(item.xmax) &&
+          item.ymax > item.ymin &&
+          item.xmax > item.xmin
         );
       });
   } catch {
     return [];
   }
+}
+
+/**
+ * 检测模型是否明确返回了“空检测结果”（避免把“没标记”当成任务失败）
+ * 仅在内容本身就是纯 JSON（对象/数组）时返回 true，避免误判。
+ */
+export function isExplicitEmptyBoxesResponse(text: string): boolean {
+  const cleanedText = (text || "")
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/g, "")
+    .trim();
+
+  try {
+    if (cleanedText.startsWith("{") && cleanedText.endsWith("}")) {
+      // biome-ignore lint/suspicious/noExplicitAny: generic JSON parse
+      const obj: any = JSON.parse(cleanedText);
+      const boxes = obj?.boxes;
+      return Array.isArray(boxes) && boxes.length === 0;
+    }
+
+    if (cleanedText.startsWith("[") && cleanedText.endsWith("]")) {
+      // biome-ignore lint/suspicious/noExplicitAny: generic JSON parse
+      const arr: any = JSON.parse(cleanedText);
+      return Array.isArray(arr) && arr.length === 0;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
 }
 
 /**

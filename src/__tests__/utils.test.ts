@@ -5,6 +5,7 @@ import {
   detectMimeType,
   formatDuration,
   getPlatformInfo,
+  isExplicitEmptyBoxesResponse,
   normalizePath,
   parseBoxesFromText,
   renderImageToTerminal,
@@ -82,6 +83,41 @@ describe("parseBoxesFromText", () => {
     expect(boxes[0]).toEqual({ ymin: 0.1, xmin: 0.2, ymax: 0.3, xmax: 0.4 });
   });
 
+  test("should normalize qwen-style bbox_2d 0-1000 coordinates", () => {
+    const text = '```json\\n[{"bbox_2d":[100,200,300,400]}]\\n```';
+    const boxes = parseBoxesFromText(text);
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0]).toEqual({ ymin: 0.2, xmin: 0.1, ymax: 0.4, xmax: 0.3 });
+  });
+
+  test("should parse a single bbox array output", () => {
+    const text = "[100,200,300,400]";
+    const boxes = parseBoxesFromText(text);
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0]).toEqual({ ymin: 0.2, xmin: 0.1, ymax: 0.4, xmax: 0.3 });
+  });
+
+  test("should handle reversed ymin/ymax or xmin/xmax and clamp", () => {
+    const text = '[{"ymin": 2, "xmin": 1.2, "ymax": -1, "xmax": 0.1}]';
+    const boxes = parseBoxesFromText(text);
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0]).toEqual({ ymin: 0, xmin: 0.1, ymax: 1, xmax: 1 });
+  });
+
+  test("should recover bbox arrays mistakenly placed under ymin field", () => {
+    const text = '[{"ymin":[439,326,500,413],"label":"x"}]';
+    const boxes = parseBoxesFromText(text);
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0]).toEqual({ ymin: 0.439, xmin: 0.326, ymax: 0.5, xmax: 0.413 });
+  });
+
+  test("should handle boxes object with arrays in numeric fields (qwen weird output)", () => {
+    const text =
+      '{"boxes":[{"ymin":[415,206,508,331],"xmin":[440,329,508,427],"ymax":[0,806,132,974],"xmax":[0,0,0,0]}]}';
+    const boxes = parseBoxesFromText(text);
+    expect(boxes.length).toBeGreaterThan(0);
+  });
+
   test("should parse multiple bounding boxes", () => {
     const text =
       '[{"ymin": 0.1, "xmin": 0.1, "ymax": 0.2, "xmax": 0.2}, {"ymin": 0.5, "xmin": 0.5, "ymax": 0.6, "xmax": 0.6}]';
@@ -105,6 +141,24 @@ describe("parseBoxesFromText", () => {
   test("should return empty array for empty input", () => {
     const boxes = parseBoxesFromText("");
     expect(boxes).toHaveLength(0);
+  });
+});
+
+describe("isExplicitEmptyBoxesResponse", () => {
+  test("should detect explicit empty boxes object", () => {
+    expect(isExplicitEmptyBoxesResponse('{"boxes":[]}')).toBe(true);
+  });
+
+  test("should detect explicit empty array", () => {
+    expect(isExplicitEmptyBoxesResponse("[]")).toBe(true);
+  });
+
+  test("should not mis-detect when JSON is not pure", () => {
+    expect(isExplicitEmptyBoxesResponse("note: []")).toBe(false);
+  });
+
+  test("should handle fenced json", () => {
+    expect(isExplicitEmptyBoxesResponse('```json\n{"boxes": []}\n```')).toBe(true);
   });
 });
 
