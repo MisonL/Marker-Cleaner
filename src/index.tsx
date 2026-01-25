@@ -39,10 +39,23 @@ function useShortcuts(params: {
   onSelectMenu: (index: number) => void;
   onOpenReport?: () => void;
   canOpenReport: boolean;
+  onRetryFailed?: () => void;
+  canRetryFailed?: boolean;
   isEditing?: boolean;
+  onClearCost?: () => void;
 }) {
-  const { screen, onExit, onNavigate, onSelectMenu, onOpenReport, canOpenReport, isEditing } =
-    params;
+  const {
+    screen,
+    onExit,
+    onNavigate,
+    onSelectMenu,
+    onOpenReport,
+    canOpenReport,
+    onRetryFailed,
+    canRetryFailed,
+    isEditing,
+    onClearCost,
+  } = params;
 
   useInput(async (input, key) => {
     // 如果正在编辑（如 TextInput 中），跳过全局快捷键
@@ -52,6 +65,9 @@ function useShortcuts(params: {
 
     // 通用退出逻辑
     if (key.escape || lowerInput === "q") {
+      // 在配置界面，交由 ConfigScreen 自己处理 Esc（用于确认保存）
+      if (screen === "config") return;
+
       if (screen !== "menu") {
         onNavigate("menu");
       } else {
@@ -67,9 +83,17 @@ function useShortcuts(params: {
       if (lowerInput === "r") onSelectMenu(3);
     }
 
+    // 清空成本快捷键 (Global or specific to process screen)
+    if (lowerInput === "c" && onClearCost) {
+      onClearCost();
+    }
+
     // 完成页快捷键
     if (screen === "done" && key.return && canOpenReport) {
       onOpenReport?.();
+    }
+    if (screen === "done" && lowerInput === "r" && canRetryFailed) {
+      onRetryFailed?.();
     }
 
     // 安装依赖快捷键 (Menu only)
@@ -293,7 +317,16 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
   logger,
   isLight,
 }) => {
-  const [editConfig, setEditConfig] = useState<Config>({ ...config });
+  // 初始化时从 providerSettings 恢复当前 Provider 的配置到顶层工作区
+  const [editConfig, setEditConfig] = useState<Config>(() => {
+    const currentProviderSettings = config.providerSettings[config.provider];
+    return {
+      ...config,
+      apiKey: currentProviderSettings?.apiKey || config.apiKey || "",
+      baseUrl: currentProviderSettings?.baseUrl || config.baseUrl || "",
+      modelName: currentProviderSettings?.modelName || config.modelName || "",
+    };
+  });
   const [isEditing, setIsEditing] = useState(false);
   const [focusIndex, setFocusIndex] = useState(0);
   const [authState, setAuthState] = useState(tokenPool.getTokens()[0]);
@@ -301,6 +334,7 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
   const [manualModelMode, setManualModelMode] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   useEffect(() => {
     onEditingChange?.(isEditing);
@@ -532,8 +566,37 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
         },
       };
       onSave(finalConfig);
-    } else if (key.escape) {
-      onCancel();
+    } else if (key.escape || input.toLowerCase() === "q") {
+      if (showExitConfirm) {
+        // 用户在确认对话框中按 Esc/q，取消退出
+        setShowExitConfirm(false);
+      } else {
+        // 显示确认对话框
+        setShowExitConfirm(true);
+      }
+    } else if (showExitConfirm) {
+      // 在确认对话框中处理用户选择
+      if (input.toLowerCase() === "s" || input.toLowerCase() === "y") {
+        // 保存并退出
+        const finalConfig = {
+          ...editConfig,
+          providerSettings: {
+            ...editConfig.providerSettings,
+            [editConfig.provider]: {
+              apiKey: editConfig.apiKey,
+              baseUrl: editConfig.baseUrl,
+              modelName: editConfig.modelName,
+            },
+          },
+        };
+        onSave(finalConfig);
+      } else if (input.toLowerCase() === "n") {
+        // 不保存直接退出
+        onCancel();
+      } else if (input.toLowerCase() === "c") {
+        // 取消退出
+        setShowExitConfirm(false);
+      }
     } else if (input === "d") {
       // 恢复默认配置 (仅更新当前编辑状态，需按 S 保存)
       setEditConfig(getDefaultConfig());
@@ -545,6 +608,36 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
 
   return (
     <Box flexDirection="column">
+      {showExitConfirm && (
+        <Box
+          borderStyle="round"
+          borderColor={warning}
+          flexDirection="column"
+          marginBottom={1}
+          paddingX={1}
+          backgroundColor={bg}
+        >
+          <Text bold color={warning} backgroundColor={bg}>
+            ⚠️ 配置已修改，是否保存？
+          </Text>
+          <Box marginTop={1} backgroundColor={bg}>
+            <Text color={fg} backgroundColor={bg}>
+              <Text bold color={success}>
+                [S]
+              </Text>{" "}
+              保存并退出{"  "}
+              <Text bold color={danger}>
+                [N]
+              </Text>{" "}
+              不保存退出{"  "}
+              <Text bold color={dim}>
+                [Esc/C]
+              </Text>{" "}
+              取消
+            </Text>
+          </Box>
+        </Box>
+      )}
       <Box marginBottom={1}>
         <Text bold>⚙️ 配置设置 (Enter 编辑/切换, S 保存, Esc 取消)</Text>
       </Box>
@@ -634,6 +727,13 @@ const ConfigScreen: React.FC<ConfigScreenProps> = ({
                   ? "   适合复杂背景 / 高质量需求 / Token 消耗较高"
                   : "   适合纯色/简单背景 / 批量处理 / Token 消耗极低"}
               </Text>
+              {!isNative && (
+                <Text color={isLight ? "black" : "gray"} backgroundColor={bg}>
+                  {
+                    "   注意：复杂背景/彩色内容多的照片可能出现糊片或残留，建议改用 Native 模式或 image 模型"
+                  }
+                </Text>
+              )}
             </Box>
           );
         }
@@ -840,6 +940,7 @@ const App: React.FC = () => {
   const [resumeState, setResumeState] = useState<ResumeState | null>(null);
   const [progress, setProgress] = useState({ current: 0, total: 0, file: "" });
   const [cost, setCost] = useState(0);
+  const [sessionStartCost, setSessionStartCost] = useState(0);
   const [thumbnail, setThumbnail] = useState("");
   const [lastStats, setLastStats] = useState<{
     tokens?: { input: number; output: number };
@@ -928,6 +1029,7 @@ const App: React.FC = () => {
     cost: number;
     tokens: { input: number; output: number };
   }>({ success: 0, failed: 0, cost: 0, tokens: { input: 0, output: 0 } });
+  const [failedTasksForRetry, setFailedTasksForRetry] = useState<BatchTask[]>([]);
 
   const menuItems: MenuItem[] = [
     { label: "🚀 批量处理", value: "start", icon: "🚀" },
@@ -978,6 +1080,7 @@ const App: React.FC = () => {
         cost: result.totalCost,
         tokens: result.totalTokens,
       });
+      setFailedTasksForRetry(result.failedTasks);
 
       setScreen("done");
 
@@ -990,6 +1093,19 @@ const App: React.FC = () => {
       setError(err instanceof Error ? err.message : String(err));
       setScreen("menu");
     }
+  };
+
+  const retryFailedTasks = async () => {
+    if (failedTasksForRetry.length === 0) return;
+    setError("");
+    setStatus("🔁 正在重试失败任务...");
+    setProgress({ current: 0, total: 0, file: "" });
+    setLastStats({});
+    setThumbnail("");
+    setSessionStats({ success: 0, failed: 0, cost: 0, tokens: { input: 0, output: 0 } });
+
+    // 直接复用当前 processor（保持当前 provider/配置一致）；失败任务不会写入 processedFiles，因此可安全重试
+    await executeBatch(failedTasksForRetry, false);
   };
 
   const runProcess = async (previewOnly = false, singleFilePath?: string) => {
@@ -1038,9 +1154,16 @@ const App: React.FC = () => {
         },
         onCostUpdate: (newCost) => {
           setCost(newCost);
+          // 如果是初次收到成本更新（通常是初始载入历史进度），记录为会话起始成本
+          // 注意：需要在 runProcess 开始时重置 sessionStartCost
         },
       });
       processorRef.current = processor;
+
+      // 初始化读取当前历史总成本
+      const initialCost = processor.getTotalCost();
+      setCost(initialCost);
+      setSessionStartCost(initialCost);
 
       let tasksToRun: BatchTask[] = [];
 
@@ -1112,7 +1235,18 @@ const App: React.FC = () => {
       if (reportPath) openPath(reportPath);
     },
     canOpenReport: !!reportPath,
+    onRetryFailed: retryFailedTasks,
+    canRetryFailed: failedTasksForRetry.length > 0,
     isEditing: isGlobalEditing,
+    onClearCost: () => {
+      // 可以在处理界面（显示成本时）清空
+      if (screen === "process") {
+        setCost(0);
+        setSessionStartCost(0);
+        processorRef.current?.resetCost();
+        setStatus("💰 历史成本记录已清空");
+      }
+    },
   });
 
   // Global key listener for 'i' install and 't' theme toggle
@@ -1130,22 +1264,22 @@ const App: React.FC = () => {
     <Box flexDirection="column" padding={1} backgroundColor={bg} width="100%">
       {/* 标题区域 - 真正旗舰级 Block Logo */}
       <Box flexDirection="column" marginBottom={1}>
-        {/* MARKER */}
+        {/* MARKER - Ultra Stable Block Font */}
         <Box flexDirection="column" backgroundColor={bg}>
-          <Text color={isLight ? "black" : "white"} bold backgroundColor={bg}>
-            ███╗ ███╗ █████╗ ██████╗ ██╗ ██╗███████╗██████╗
+          <Text color={isLight ? "black" : "#00FFFF"} bold backgroundColor={bg}>
+            ██████╗ █████╗ ██████╗ ██╗ ██╗███████╗██████╗
           </Text>
-          <Text color={isLight ? "black" : "white"} bold backgroundColor={bg}>
-            ████╗ ████║██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗
-          </Text>
-          <Text color={accent} bold backgroundColor={bg}>
-            ██╔████╔██║███████║██████╔╝█████╔╝ █████╗ ██████╔╝
+          <Text color={isLight ? "black" : "#00E5FF"} bold backgroundColor={bg}>
+            ██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗
           </Text>
           <Text color={accent} bold backgroundColor={bg}>
-            ██║╚██╔╝██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝ ██╔══██╗
+            ██████╔╝███████║██████╔╝█████╔╝ █████╗ ██████╔╝
           </Text>
           <Text color={accent} bold backgroundColor={bg}>
-            ██║ ╚═╝ ██║██║ ██║██║ ██║██║ ██╗███████╗██║ ██║
+            ██╔══██╗██╔══██║██╔══██╗██╔═██╗ ██╔══╝ ██╔══██╗
+          </Text>
+          <Text color={accent} bold backgroundColor={bg}>
+            ██║ ██║██║ ██║██║ ██║██║ ██╗███████╗██║ ██║
           </Text>
           <Text color={accent} bold backgroundColor={bg}>
             ╚═╝ ╚═╝╚═╝ ╚═╝╚═╝ ╚═╝╚═╝ ╚═╝╚══════╝╚═╝ ╚═╝
@@ -1154,11 +1288,10 @@ const App: React.FC = () => {
 
         <Text> </Text>
 
-        {/* CLEANER */}
+        {/* CLEANER - Ultra Stable Block Font */}
         <Box flexDirection="column" backgroundColor={bg}>
           <Text color={accent} bold backgroundColor={bg}>
-            {" "}
-            ██████╗██╗ ███████╗ █████╗ ███╗ ██╗███████╗██████╗{" "}
+            ██████╗██╗ ███████╗ █████╗ ███╗ ██╗███████╗██████╗
           </Text>
           <Text color={accent} bold backgroundColor={bg}>
             ██╔════╝██║ ██╔════╝██╔══██╗████╗ ██║██╔════╝██╔══██╗
@@ -1503,14 +1636,19 @@ const App: React.FC = () => {
                   ⏱️ 耗时: {formatDuration(lastStats.duration)}
                 </Text>
               )}
-              <Box marginTop={1}>
-                <Text color={isLight ? "magenta" : "yellow"}>💰 累计成本: ${cost.toFixed(4)}</Text>
+              <Box marginTop={1} flexDirection="column">
+                <Text color={isLight ? "magenta" : "yellow"}>
+                  💰 本次成本: ${(cost - sessionStartCost).toFixed(4)}
+                  {"  "}
+                  <Text color={dim}>(累计: ${cost.toFixed(4)})</Text>
+                </Text>
                 {config.budgetLimit > 0 && (
                   <Text color={dim} backgroundColor={bg}>
                     {" "}
                     (上限: ${config.budgetLimit})
                   </Text>
                 )}
+                <Text color={dim}>按 'C' 清空历史累计成本</Text>
               </Box>
             </Box>
           )}
@@ -1571,6 +1709,18 @@ const App: React.FC = () => {
                   键打开 HTML 处理报告
                 </Text>
               </Box>
+              {failedTasksForRetry.length > 0 && (
+                <Box backgroundColor={bg}>
+                  <Text bold color={warning} backgroundColor={bg}>
+                    {" "}
+                    R{" "}
+                  </Text>
+                  <Text color={dim} backgroundColor={bg}>
+                    {" "}
+                    重试本次失败任务 ({failedTasksForRetry.length} 个)
+                  </Text>
+                </Box>
+              )}
               <Text color={dim} backgroundColor={bg}>
                 按 Esc 返回主菜单
               </Text>
