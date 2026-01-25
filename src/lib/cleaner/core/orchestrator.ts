@@ -89,6 +89,7 @@ export async function cleanMarkersLocal(
 
   // 3. 边框带涂抹
   const usedRects: Array<{ rect: PixelRect; band: number }> = [];
+  const skippedRects: PixelRect[] = [];
   for (const box of mergedBoxesArr) {
     const padding = Math.max(6, Math.min(18, Math.round(Math.min(width, height) * 0.006)));
     let rect = toPixelRect(box, width, height, padding);
@@ -129,8 +130,10 @@ export async function cleanMarkersLocal(
       isHuge &&
       !forceFromLocal &&
       scoreFrameMarkerPixels(ctx, rect, band, 4) < (isComplexScene ? 32 : 24)
-    )
+    ) {
+      skippedRects.push(rect);
       continue;
+    }
     paintRectFrame(ctx, rect, band, {
       force: forceFromLocal,
       conservative: isHuge && !forceFromLocal,
@@ -140,10 +143,14 @@ export async function cleanMarkersLocal(
 
   // 4. 兜底 ROI 修复
   const roiRects: PixelRect[] = [];
-  for (const it of usedRects.slice(0, 24)) {
-    const r = it.rect;
-    const pad = Math.max(10, Math.min(34, it.band + 10));
-    const { x1, y1, x2, y2 } = r;
+  // 调优: 将 skippedHugeBox 也纳入 ROI 检测范围，让 mask 检测做最后一道防线
+  const maskSourceRects = [...usedRects.map((it) => it.rect), ...skippedRects];
+  // 调优: 采样数量上限提升至 28
+  const maxMaskSources = 28;
+  
+  for (const rect of maskSourceRects.slice(0, maxMaskSources)) {
+    const pad = Math.max(10, Math.min(34, (Math.min(rect.x2 - rect.x1, rect.y2 - rect.y1) + 10)));
+    const { x1, y1, x2, y2 } = rect;
     if (y1 + pad < y2) roiRects.push({ x1, y1, x2, y2: y1 + pad });
     if (y2 - pad > y1) roiRects.push({ x1, y1: y2 - pad, x2, y2 });
     if (x1 + pad < x2) roiRects.push({ x1, y1, x2: x1 + pad, y2 });
