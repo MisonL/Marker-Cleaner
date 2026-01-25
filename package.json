@@ -8,6 +8,7 @@
     "dev": "bun --watch run src/index.tsx",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
+    "typecheck": "bun x tsc -p tsconfig.json --noEmit",
     "lint": "bun x biome check src/",
     "lint:fix": "bun x biome check --write src/",
     "format": "bun x biome format --write src/",
@@ -15,7 +16,8 @@
     "build:mac": "bun build src/index.tsx --compile --target=bun-darwin-arm64 --external=sharp --outfile=dist/marker-cleaner-macos",
     "build:mac-x64": "bun build src/index.tsx --compile --target=bun-darwin-x64 --external=sharp --outfile=dist/marker-cleaner-macos-x64",
     "build:win": "bun build src/index.tsx --compile --target=bun-windows-x64 --external=sharp --outfile=dist/marker-cleaner-win.exe",
-    "build:linux": "bun build src/index.tsx --compile --target=bun-linux-x64 --external=sharp --outfile=dist/marker-cleaner-linux"
+    "build:linux": "bun build src/index.tsx --compile --target=bun-linux-x64 --external=sharp --outfile=dist/marker-cleaner-linux",
+    "regress": "bun run scripts/regress-detection.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

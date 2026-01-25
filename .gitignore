@@ -23,9 +23,20 @@ Thumbs.db
 input/
 output/
 
-# reference 目录（内部参考，不发布）
+# 回归测试报告
+regress-reports/
+
+# 示例图与大型素材
+示例图/
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# 内部参考
 reference/
 
-# Secrets
+# 路径错误/Secrets
+src/Volumes/
 antigravity_token.json
 fix_processor.py
