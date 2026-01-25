@@ -1,12 +1,22 @@
 import { DependencyManager } from "../../deps-manager";
 import type { BoundingBox, CleanerResult } from "../../types";
 import { CLEANER_THRESHOLDS } from "../constants";
+import { detectOverlayLineBoxes, detectRectangleLineBoxes } from "../detectors/box";
+import {
+  detectCornerConnectedLineMask,
+  detectEdgeMaskInBoxes,
+  detectStrokeMask,
+} from "../detectors/mask";
 import { estimateTextureComplexity, mergeBoxes, toPixelRect } from "../utils/image";
-import { detectRectangleLineBoxes, detectOverlayLineBoxes } from "../detectors/box";
-import { detectCornerConnectedLineMask, detectStrokeMask, detectEdgeMaskInBoxes } from "../detectors/mask";
-import { inpaintMask, smoothChangedPixels } from "./inpaint";
-import { scoreFrameMarkerPixels, paintRectFrame, inpaintStrongColorInsideBoxes, inpaintStrongColorColumnsInsideBoxes } from "./painter";
+import type { PixelRect } from "../utils/image";
 import type { CleanerContext } from "./context";
+import { inpaintMask, smoothChangedPixels } from "./inpaint";
+import {
+  inpaintStrongColorColumnsInsideBoxes,
+  inpaintStrongColorInsideBoxes,
+  paintRectFrame,
+  scoreFrameMarkerPixels,
+} from "./painter";
 
 /**
  * Detection 模式核心调度引擎
@@ -16,10 +26,10 @@ export async function cleanMarkersLocal(
   boxes: BoundingBox[],
 ): Promise<CleanerResult> {
   const startTime = Date.now();
-  let sharp: any;
+  let sharp: CleanerContext["sharp"];
   try {
     const sharpModule = await DependencyManager.getInstance().loadSharp();
-    sharp = sharpModule.default || sharpModule;
+    sharp = (sharpModule.default || sharpModule) as unknown as CleanerContext["sharp"];
   } catch {
     throw new Error("Sharp module not found.");
   }
@@ -36,7 +46,15 @@ export async function cleanMarkersLocal(
   const textureScore = estimateTextureComplexity(pixels, width, height);
   const isComplexScene = textureScore > CLEANER_THRESHOLDS.TEXTURE_COMPLEXITY;
 
-  const ctx: CleanerContext = { pixels, changed, width, height, info: { width: info.width, height: info.height }, isComplexScene, sharp };
+  const ctx: CleanerContext = {
+    pixels,
+    changed,
+    width,
+    height,
+    info: { width: info.width, height: info.height },
+    isComplexScene,
+    sharp,
+  };
   let fallbackPixelsSum = 0;
 
   // 1. 本地检测与合并
@@ -50,7 +68,15 @@ export async function cleanMarkersLocal(
   } catch {}
 
   if (mergedBoxesArr.length === 0) {
-    return { outputBuffer: imageBuffer, stats: { changedPixels: 0, fallbackPixels: 0, totalPixels: width * height, durationMs: Date.now() - startTime } };
+    return {
+      outputBuffer: imageBuffer,
+      stats: {
+        changedPixels: 0,
+        fallbackPixels: 0,
+        totalPixels: width * height,
+        durationMs: Date.now() - startTime,
+      },
+    };
   }
 
   // 2. 本地优先修复
@@ -62,14 +88,23 @@ export async function cleanMarkersLocal(
   }
 
   // 3. 边框带涂抹
-  const usedRects: Array<{ rect: any; band: number }> = [];
+  const usedRects: Array<{ rect: PixelRect; band: number }> = [];
   for (const box of mergedBoxesArr) {
     const padding = Math.max(6, Math.min(18, Math.round(Math.min(width, height) * 0.006)));
     let rect = toPixelRect(box, width, height, padding);
-    const bandBase = Math.max(4, Math.min(22, Math.round(Math.min(rect.x2 - rect.x1, rect.y2 - rect.y1) * 0.08)));
+    const bandBase = Math.max(
+      4,
+      Math.min(22, Math.round(Math.min(rect.x2 - rect.x1, rect.y2 - rect.y1) * 0.08)),
+    );
 
-    const swappedRect = toPixelRect({ ymin: box.xmin, xmin: box.ymin, ymax: box.xmax, xmax: box.ymax }, width, height, padding);
-    const s1 = scoreFrameMarkerPixels(ctx, rect, bandBase, 4), s2 = scoreFrameMarkerPixels(ctx, swappedRect, bandBase, 4);
+    const swappedRect = toPixelRect(
+      { ymin: box.xmin, xmin: box.ymin, ymax: box.xmax, xmax: box.ymax },
+      width,
+      height,
+      padding,
+    );
+    const s1 = scoreFrameMarkerPixels(ctx, rect, bandBase, 4);
+    const s2 = scoreFrameMarkerPixels(ctx, swappedRect, bandBase, 4);
     if (s2 >= 12 && s2 > s1 * 2) rect = swappedRect;
 
     const areaRatio = ((rect.x2 - rect.x1) * (rect.y2 - rect.y1)) / (width * height);
@@ -79,20 +114,35 @@ export async function cleanMarkersLocal(
     let forceFromLocal = false;
     for (const lb of localBoxes) {
       const lr = toPixelRect(lb, width, height, 0);
-      const inter = Math.max(0, Math.min(rect.x2, lr.x2) - Math.max(rect.x1, lr.x1)) * Math.max(0, Math.min(rect.y2, lr.y2) - Math.max(rect.y1, lr.y1));
-      const union = (rect.x2-rect.x1)*(rect.y2-rect.y1) + (lr.x2-lr.x1)*(lr.y2-lr.y1) - inter;
-      if (union > 0 && inter / union > 0.55) { forceFromLocal = true; break; }
+      const inter =
+        Math.max(0, Math.min(rect.x2, lr.x2) - Math.max(rect.x1, lr.x1)) *
+        Math.max(0, Math.min(rect.y2, lr.y2) - Math.max(rect.y1, lr.y1));
+      const union =
+        (rect.x2 - rect.x1) * (rect.y2 - rect.y1) + (lr.x2 - lr.x1) * (lr.y2 - lr.y1) - inter;
+      if (union > 0 && inter / union > 0.55) {
+        forceFromLocal = true;
+        break;
+      }
     }
 
-    if (isHuge && !forceFromLocal && scoreFrameMarkerPixels(ctx, rect, band, 4) < (isComplexScene ? 32 : 24)) continue;
-    paintRectFrame(ctx, rect, band, { force: forceFromLocal, conservative: isHuge && !forceFromLocal });
+    if (
+      isHuge &&
+      !forceFromLocal &&
+      scoreFrameMarkerPixels(ctx, rect, band, 4) < (isComplexScene ? 32 : 24)
+    )
+      continue;
+    paintRectFrame(ctx, rect, band, {
+      force: forceFromLocal,
+      conservative: isHuge && !forceFromLocal,
+    });
     usedRects.push({ rect, band });
   }
 
   // 4. 兜底 ROI 修复
-  const roiRects: any[] = [];
+  const roiRects: PixelRect[] = [];
   for (const it of usedRects.slice(0, 24)) {
-    const r = it.rect, pad = Math.max(10, Math.min(34, it.band + 10));
+    const r = it.rect;
+    const pad = Math.max(10, Math.min(34, it.band + 10));
     const { x1, y1, x2, y2 } = r;
     if (y1 + pad < y2) roiRects.push({ x1, y1, x2, y2: y1 + pad });
     if (y2 - pad > y1) roiRects.push({ x1, y1: y2 - pad, x2, y2 });
@@ -105,7 +155,7 @@ export async function cleanMarkersLocal(
       const m1 = await detectCornerConnectedLineMask(ctx, roiRects);
       fallbackPixelsSum += inpaintMask(ctx, m1);
       const m2 = await detectStrokeMask(ctx, roiRects);
-      if (m2.some(v => v === 1)) fallbackPixelsSum += inpaintMask(ctx, m2);
+      if (m2.some((v) => v === 1)) fallbackPixelsSum += inpaintMask(ctx, m2);
     } catch {}
   }
 
@@ -113,13 +163,22 @@ export async function cleanMarkersLocal(
 
   let changedPixels = 0;
   for (let i = 0; i < changed.length; i++) if (changed[i] === 1) changedPixels++;
-  const stats = { changedPixels, fallbackPixels: fallbackPixelsSum, totalPixels: width * height, durationMs: Date.now() - startTime };
+  const stats = {
+    changedPixels,
+    fallbackPixels: fallbackPixelsSum,
+    totalPixels: width * height,
+    durationMs: Date.now() - startTime,
+  };
 
-  const out = sharp(pixels, { raw: { width: info.width, height: info.height, channels: 4 } }).withMetadata();
+  const out = sharp(pixels, {
+    raw: { width: info.width, height: info.height, channels: 4 },
+  }).withMetadata();
   const fmt = metadata.format?.toLowerCase();
   let outputBuffer: Buffer;
   if (fmt === "jpeg" || fmt === "jpg") {
-    outputBuffer = await out.jpeg({ quality: 98, chromaSubsampling: "4:4:4", progressive: false, mozjpeg: true }).toBuffer();
+    outputBuffer = await out
+      .jpeg({ quality: 98, chromaSubsampling: "4:4:4", progressive: false, mozjpeg: true })
+      .toBuffer();
   } else if (fmt === "webp") {
     outputBuffer = await out.webp({ quality: 95, effort: 6 }).toBuffer();
   } else {

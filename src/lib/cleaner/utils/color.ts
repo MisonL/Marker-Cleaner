@@ -135,10 +135,13 @@ export function getDirectionalAverage(
   height: number,
   x: number,
   y: number,
-  isHoriz: boolean
+  isHoriz: boolean,
 ): [number, number, number] | null {
   const r = 3;
-  let sr = 0, sg = 0, sb = 0, sc = 0;
+  let sr = 0;
+  let sg = 0;
+  let sb = 0;
+  let sc = 0;
 
   if (isHoriz) {
     for (let dy = -r; dy <= r; dy++) {
@@ -146,7 +149,10 @@ export function getDirectionalAverage(
       const ny = y + dy;
       if (ny < 0 || ny >= height) continue;
       const idx = (ny * width + x) * 4;
-      sr += pixels[idx] ?? 0; sg += pixels[idx + 1] ?? 0; sb += pixels[idx + 2] ?? 0; sc++;
+      sr += pixels[idx] ?? 0;
+      sg += pixels[idx + 1] ?? 0;
+      sb += pixels[idx + 2] ?? 0;
+      sc++;
     }
   } else {
     for (let dx = -r; dx <= r; dx++) {
@@ -154,7 +160,10 @@ export function getDirectionalAverage(
       const nx = x + dx;
       if (nx < 0 || nx >= width) continue;
       const idx = (y * width + nx) * 4;
-      sr += pixels[idx] ?? 0; sg += pixels[idx + 1] ?? 0; sb += pixels[idx + 2] ?? 0; sc++;
+      sr += pixels[idx] ?? 0;
+      sg += pixels[idx + 1] ?? 0;
+      sb += pixels[idx + 2] ?? 0;
+      sc++;
     }
   }
 

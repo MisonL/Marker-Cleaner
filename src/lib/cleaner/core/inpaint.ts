@@ -52,8 +52,12 @@ export function inpaintMask(ctx: CleanerContext, mask: Uint8Array): number {
 
       const [s0, s1] = samples;
       if (samples.length >= 2 && s0 && s1) {
-        let minR = 255, minG = 255, minB = 255;
-        let maxR = 0, maxG = 0, maxB = 0;
+        let minR = 255;
+        let minG = 255;
+        let minB = 255;
+        let maxR = 0;
+        let maxG = 0;
+        let maxB = 0;
         for (const [rr, gg, bb] of samples) {
           if (rr < minR) minR = rr;
           if (gg < minG) minG = gg;
@@ -90,7 +94,10 @@ export function inpaintMask(ctx: CleanerContext, mask: Uint8Array): number {
     if (mask[p] === 0) continue;
     const x = p % width;
     const y = Math.floor(p / width);
-    let sr = 0, sg = 0, sb = 0, count = 0;
+    let sr = 0;
+    let sg = 0;
+    let sb = 0;
+    let count = 0;
     for (let dy = -2; dy <= 2; dy++) {
       const ny = y + dy;
       if (ny < 0 || ny >= height) continue;
@@ -100,7 +107,9 @@ export function inpaintMask(ctx: CleanerContext, mask: Uint8Array): number {
         if (mask[ny * width + nx] === 0) {
           const [r, g, b] = sampleAt(nx, ny);
           if (!isLikelyMarkPixel(r, g, b)) {
-            sr += r; sg += g; sb += b;
+            sr += r;
+            sg += g;
+            sb += b;
             count++;
           }
         }
@@ -142,7 +151,10 @@ export function smoothChangedPixels(ctx: CleanerContext) {
       const x = p % width;
       const y = Math.floor(p / width);
 
-      let accR = 0, accG = 0, accB = 0, wsum = 0;
+      let accR = 0;
+      let accG = 0;
+      let accB = 0;
+      let wsum = 0;
       for (let dy = -1; dy <= 1; dy++) {
         const ny = y + dy;
         if (ny < 0 || ny >= height) continue;

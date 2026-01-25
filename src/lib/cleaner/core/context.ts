@@ -1,3 +1,7 @@
+import type sharp from "sharp";
+
+export type SharpFn = typeof sharp;
+
 export interface CleanerContext {
   pixels: Uint8Array;
   changed: Uint8Array;
@@ -8,5 +12,5 @@ export interface CleanerContext {
     height: number;
   };
   isComplexScene: boolean;
-  sharp: any; // sharp instance
+  sharp: SharpFn;
 }
