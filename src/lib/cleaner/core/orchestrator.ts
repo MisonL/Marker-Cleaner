@@ -12,6 +12,7 @@ import type { PixelRect } from "../rect";
 import type { DetectionTrace } from "../trace";
 import type { CleanerContext } from "./context";
 import { inpaintMask, smoothChangedPixels } from "./inpaint";
+import { isMarkerColor } from "../utils/color";
 import {
   inpaintStrongColorColumnsInsideBoxes,
   inpaintStrongColorInsideBoxes,
@@ -145,20 +146,73 @@ export async function cleanMarkersLocal(
     usedRects.push({ rect, band });
   }
 
+  const manualEdgeRects: PixelRect[] = [];
+  const manualSpan = Math.max(16, Math.min(Math.round(Math.min(width, height) * 0.05), Math.floor(Math.min(width, height) / 2)));
+  manualEdgeRects.push(
+    { x1: 0, y1: 0, x2: width, y2: manualSpan },
+    { x1: 0, y1: height - manualSpan, x2: width, y2: height },
+    { x1: 0, y1: 0, x2: manualSpan, y2: height },
+    { x1: width - manualSpan, y1: 0, x2: width, y2: height },
+  );
+  for (const rect of manualEdgeRects) {
+    const band = Math.max(4, Math.min(12, Math.round(Math.min(rect.x2 - rect.x1, rect.y2 - rect.y1) * 0.08)));
+    paintRectFrame(ctx, rect, band, { force: true, conservative: false });
+    usedRects.push({ rect, band });
+  }
+
   // 4. 兜底 ROI 修复
   const roiRects: PixelRect[] = [];
   // 调优: 将 skippedHugeBox 也纳入 ROI 检测范围，让 mask 检测做最后一道防线
+  const edgeBand = Math.max(14, Math.min(48, Math.round(Math.min(width, height) * 0.03)));
   const maskSourceRects = [...usedRects.map((it) => it.rect), ...skippedRects];
-  // 调优: 采样数量上限提升至 28
-  const maxMaskSources = 28;
-  
+  const maxMaskSources = 32;
+
   for (const rect of maskSourceRects.slice(0, maxMaskSources)) {
-    const pad = Math.max(10, Math.min(34, (Math.min(rect.x2 - rect.x1, rect.y2 - rect.y1) + 10)));
+    const pad = Math.max(10, Math.min(34, Math.min(rect.x2 - rect.x1, rect.y2 - rect.y1) + 10));
     const { x1, y1, x2, y2 } = rect;
     if (y1 + pad < y2) roiRects.push({ x1, y1, x2, y2: y1 + pad });
     if (y2 - pad > y1) roiRects.push({ x1, y1: y2 - pad, x2, y2 });
     if (x1 + pad < x2) roiRects.push({ x1, y1, x2: x1 + pad, y2 });
     if (x2 - pad > x1) roiRects.push({ x1: x2 - pad, y1, x2, y2 });
+    const minDim = Math.min(rect.x2 - rect.x1, rect.y2 - rect.y1);
+    const centerPad = Math.max(6, Math.min(30, Math.round(minDim * 0.35)));
+    const centerRect = {
+      x1: rect.x1 + centerPad,
+      y1: rect.y1 + centerPad,
+      x2: rect.x2 - centerPad,
+      y2: rect.y2 - centerPad,
+    };
+    if (centerRect.x2 > centerRect.x1 + 3 && centerRect.y2 > centerRect.y1 + 3) {
+      roiRects.push(centerRect);
+    }
+  }
+
+  // 扩展边缘区域，防止顶/底/左/右残留
+  roiRects.push({ x1: 0, y1: 0, x2: width, y2: edgeBand });
+  roiRects.push({ x1: 0, y1: height - edgeBand, x2: width, y2: height });
+  roiRects.push({ x1: 0, y1: 0, x2: edgeBand, y2: height });
+  roiRects.push({ x1: width - edgeBand, y1: 0, x2: width, y2: height });
+  const edgeMask = new Uint8Array(width * height);
+  const markIfEdge = (x: number, y: number) => {
+    if (x < 0 || x >= width || y < 0 || y >= height) return;
+    const idx = (y * width + x) * 4;
+    if (isMarkerColor(pixels[idx] ?? 0, pixels[idx + 1] ?? 0, pixels[idx + 2] ?? 0)) {
+      edgeMask[y * width + x] = 1;
+    }
+  };
+  for (let y = 0; y < edgeBand; y++) {
+    for (let x = 0; x < width; x++) markIfEdge(x, y);
+  }
+  for (let y = height - edgeBand; y < height; y++) {
+    if (y < 0) continue;
+    for (let x = 0; x < width; x++) markIfEdge(x, y);
+  }
+  for (let x = 0; x < edgeBand; x++) {
+    for (let y = 0; y < height; y++) markIfEdge(x, y);
+  }
+  for (let x = width - edgeBand; x < width; x++) {
+    if (x < 0) continue;
+    for (let y = 0; y < height; y++) markIfEdge(x, y);
   }
 
   if (roiRects.length > 0) {
@@ -169,6 +223,152 @@ export async function cleanMarkersLocal(
       if (m2.some((v) => v === 1)) fallbackPixelsSum += inpaintMask(ctx, m2);
     } catch {}
   }
+
+  // 针对边缘残留再跑一次边缘检测
+  const edgeBoxes: BoundingBox[] = [];
+  if (edgeBand > 1) {
+    edgeBoxes.push(
+      { ymin: 0, xmin: 0, ymax: edgeBand / height, xmax: 1 },
+      { ymin: (height - edgeBand) / height, xmin: 0, ymax: 1, xmax: 1 },
+      { ymin: 0, xmin: 0, ymax: 1, xmax: edgeBand / width },
+      { ymin: 0, xmin: (width - edgeBand) / width, ymax: 1, xmax: 1 },
+    );
+    try {
+      const edgeOnlyMask = detectEdgeMaskInBoxes(ctx, edgeBoxes, 6, 260);
+      if (edgeOnlyMask.some((v) => v === 1)) fallbackPixelsSum += inpaintMask(ctx, edgeOnlyMask);
+    } catch {}
+  }
+
+  if (edgeMask.some((v) => v === 1)) fallbackPixelsSum += inpaintMask(ctx, edgeMask);
+
+  const edgeLineMask = new Uint8Array(width * height);
+  const markMask = (x: number, y: number) => {
+    if (x < 0 || x >= width || y < 0 || y >= height) return;
+    edgeLineMask[y * width + x] = 1;
+  };
+  const minRun = 4;
+  const scanHorizontal = (yStart: number, yEnd: number) => {
+    for (let y = yStart; y < yEnd && y < height; y++) {
+      let run = 0;
+      let start = 0;
+      for (let x = 0; x <= width; x++) {
+        const isOn = x < width && isMarkerColor(pixels[(y * width + x) * 4] ?? 0, pixels[(y * width + x) * 4 + 1] ?? 0, pixels[(y * width + x) * 4 + 2] ?? 0);
+        if (isOn) {
+          if (run === 0) start = x;
+          run++;
+        }
+        if (!isOn || x === width) {
+          if (run >= minRun) {
+            for (let xx = start; xx < x; xx++) markMask(xx, y);
+          }
+          run = 0;
+        }
+      }
+    }
+  };
+  const scanVertical = (xStart: number, xEnd: number) => {
+    for (let x = xStart; x < xEnd && x < width; x++) {
+      let run = 0;
+      let start = 0;
+      for (let y = 0; y <= height; y++) {
+        const isOn = y < height && isMarkerColor(pixels[(y * width + x) * 4] ?? 0, pixels[(y * width + x) * 4 + 1] ?? 0, pixels[(y * width + x) * 4 + 2] ?? 0);
+        if (isOn) {
+          if (run === 0) start = y;
+          run++;
+        }
+        if (!isOn || y === height) {
+          if (run >= minRun) {
+            for (let yy = start; yy < y; yy++) markMask(x, yy);
+          }
+          run = 0;
+        }
+      }
+    }
+  };
+
+  scanHorizontal(0, edgeBand);
+  scanHorizontal(Math.max(0, height - edgeBand), height);
+  scanVertical(0, edgeBand);
+  scanVertical(Math.max(0, width - edgeBand), width);
+
+  if (edgeLineMask.some((v) => v === 1)) fallbackPixelsSum += inpaintMask(ctx, edgeLineMask);
+
+  const countRowMarkers = (y: number) => {
+    if (y < 0 || y >= height) return width;
+    let cnt = 0;
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4;
+      if (isMarkerColor(pixels[idx] ?? 0, pixels[idx + 1] ?? 0, pixels[idx + 2] ?? 0)) cnt++;
+      if (cnt > width * 0.02) break;
+    }
+    return cnt;
+  };
+
+  const findCleanRow = (startY: number, dir: 1 | -1) => {
+    let y = startY;
+    while (y >= 0 && y < height) {
+      if (countRowMarkers(y) <= Math.max(1, Math.round(width * 0.01))) return y;
+      y += dir;
+    }
+    return Math.max(0, Math.min(height - 1, startY));
+  };
+
+  const countColMarkers = (x: number) => {
+    if (x < 0 || x >= width) return height;
+    let cnt = 0;
+    for (let y = 0; y < height; y++) {
+      const idx = (y * width + x) * 4;
+      if (isMarkerColor(pixels[idx] ?? 0, pixels[idx + 1] ?? 0, pixels[idx + 2] ?? 0)) cnt++;
+      if (cnt > height * 0.02) break;
+    }
+    return cnt;
+  };
+
+  const findCleanCol = (startX: number, dir: 1 | -1) => {
+    let x = startX;
+    while (x >= 0 && x < width) {
+      if (countColMarkers(x) <= Math.max(1, Math.round(height * 0.01))) return x;
+      x += dir;
+    }
+    return Math.max(0, Math.min(width - 1, startX));
+  };
+
+  const copyHorizontalEdge = (targetY: number, sampleY: number) => {
+    if (targetY < 0 || targetY >= height) return;
+    const sy = Math.max(0, Math.min(height - 1, sampleY));
+    for (let x = 0; x < width; x++) {
+      const idx = (targetY * width + x) * 4;
+      if (!isMarkerColor(pixels[idx] ?? 0, pixels[idx + 1] ?? 0, pixels[idx + 2] ?? 0)) continue;
+      const sIdx = (sy * width + x) * 4;
+      pixels[idx] = pixels[sIdx] ?? 0;
+      pixels[idx + 1] = pixels[sIdx + 1] ?? 0;
+      pixels[idx + 2] = pixels[sIdx + 2] ?? 0;
+      changed[targetY * width + x] = 1;
+    }
+  };
+
+  const copyVerticalEdge = (targetX: number, sampleX: number) => {
+    if (targetX < 0 || targetX >= width) return;
+    const sx = Math.max(0, Math.min(width - 1, sampleX));
+    for (let y = 0; y < height; y++) {
+      const idx = (y * width + targetX) * 4;
+      if (!isMarkerColor(pixels[idx] ?? 0, pixels[idx + 1] ?? 0, pixels[idx + 2] ?? 0)) continue;
+      const sIdx = (y * width + sx) * 4;
+      pixels[idx] = pixels[sIdx] ?? 0;
+      pixels[idx + 1] = pixels[sIdx + 1] ?? 0;
+      pixels[idx + 2] = pixels[sIdx + 2] ?? 0;
+      changed[y * width + targetX] = 1;
+    }
+  };
+
+  const topSample = findCleanRow(edgeBand + 1, 1);
+  for (let y = 0; y < edgeBand && y < height; y++) copyHorizontalEdge(y, topSample);
+  const bottomSample = findCleanRow(height - edgeBand - 2, -1);
+  for (let y = Math.max(0, height - edgeBand); y < height; y++) copyHorizontalEdge(y, bottomSample);
+  const leftSample = findCleanCol(edgeBand + 1, 1);
+  for (let x = 0; x < edgeBand && x < width; x++) copyVerticalEdge(x, leftSample);
+  const rightSample = findCleanCol(width - edgeBand - 2, -1);
+  for (let x = Math.max(0, width - edgeBand); x < width; x++) copyVerticalEdge(x, rightSample);
 
   smoothChangedPixels(ctx);
 
