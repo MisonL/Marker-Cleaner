@@ -66,9 +66,15 @@ export async function detectRectangleLineBoxes(ctx: CleanerContext): Promise<Bou
     }
     const bw = maxx - minx + 1;
     const bh = maxy - miny + 1;
-    if (bw > 25 && bh > 25 && bw < sw * 0.9 && bh < sh * 0.9) {
+    // Lower threshold to 10 (approx 26px on 1280w)
+    if (bw > 10 && bh > 10 && bw < sw * 0.9 && bh < sh * 0.9) {
       const fill = pts.length / (bw * bh);
-      if (fill > 0.04 && fill < 0.35)
+      // 原逻辑: if (fill > 0.04 && fill < 0.35)
+      // 修复: 对于小尺寸框 (Solid Price Tags)，允许高填充率
+      const isSmall = bw < sw * 0.5 && bh < sh * 0.5;
+      const maxFill = isSmall ? 0.95 : 0.35;
+      
+      if (fill > 0.04 && fill < maxFill)
         boxes.push({ ymin: miny / sh, xmin: minx / sw, ymax: maxy / sh, xmax: maxx / sw });
     }
   }
@@ -137,7 +143,8 @@ export async function detectOverlayLineBoxes(ctx: CleanerContext): Promise<Bound
     const bw = maxx - minx + 1;
     const bh = maxy - miny + 1;
     const area = pts.length;
-    if (bw > 20 && bh > 20 && area > 100 && area < sw * sh * 0.2) {
+    // Lower threshold to 8 (approx 32px on 1280w)
+    if (bw > 8 && bh > 8 && area > 64 && area < sw * sh * 0.2) {
       boxes.push({ ymin: miny / sh, xmin: minx / sw, ymax: maxy / sh, xmax: maxx / sw });
     }
   }
