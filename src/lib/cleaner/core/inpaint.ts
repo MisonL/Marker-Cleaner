@@ -21,7 +21,7 @@ export function inpaintMask(ctx: CleanerContext, mask: Uint8Array): number {
 
   const getPixel = (x: number, y: number) => {
     const idx = (y * width + x) * 4;
-    return [pixels[idx], pixels[idx + 1], pixels[idx + 2]];
+    return [pixels[idx] ?? 0, pixels[idx + 1] ?? 0, pixels[idx + 2] ?? 0] as const;
   };
 
   const PATCH_RADIUS = 2; // 5x5 patch
@@ -154,9 +154,9 @@ export function inpaintMask(ctx: CleanerContext, mask: Uint8Array): number {
          if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
          if (mask[ny * width + nx] === 0) {
              const idx = (ny * width + nx) * 4;
-             sr += pixels[idx];
-             sg += pixels[idx+1];
-             sb += pixels[idx+2];
+             sr += pixels[idx] ?? 0;
+             sg += pixels[idx+1] ?? 0;
+             sb += pixels[idx+2] ?? 0;
              count++;
          }
       }
