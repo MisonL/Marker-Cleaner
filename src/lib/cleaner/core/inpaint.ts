@@ -27,7 +27,7 @@ export function inpaintMask(ctx: CleanerContext, mask: Uint8Array): number {
       const x = p % width;
       const y = Math.floor(p / width);
 
-      const samples: Array<[number, number, number, number]> = [];
+      const samples: Array<[number, number, number]> = [];
       for (let radius = 1; radius <= 12 && samples.length < 10; radius++) {
         const candidates: Array<[number, number]> = [
           [x, y - radius],
@@ -45,10 +45,7 @@ export function inpaintMask(ctx: CleanerContext, mask: Uint8Array): number {
           if (mask[midx] === 1) continue;
           const [r, g, b] = sampleAt(cx, cy);
           if (isLikelyMarkPixel(r, g, b)) continue;
-          const dx = cx - x;
-          const dy = cy - y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          samples.push([r, g, b, dist]);
+          samples.push([r, g, b]);
           if (samples.length >= 6) break;
         }
       }
@@ -77,27 +74,13 @@ export function inpaintMask(ctx: CleanerContext, mask: Uint8Array): number {
           continue;
         }
 
-        let weightSum = 0;
-        let rSum = 0;
-        let gSum = 0;
-        let bSum = 0;
-
-        for (const [rr, gg, bb, dist] of samples) {
-             // IDW: weight = 1 / (dist^2). dist is mostly euclidean distance from center
-             // note: `radius` in outer loop is roughly dist. 
-             // Ideally we store exact dist in samples. 
-             // Let's modify samples to include distance.
-             const w = 1 / (dist * dist + 0.1); 
-             weightSum += w;
-             rSum += rr * w;
-             gSum += gg * w;
-             bSum += bb * w;
-        }
-
+        const sr = Math.round(samples.reduce((s, v) => s + v[0], 0) / samples.length);
+        const sg = Math.round(samples.reduce((s, v) => s + v[1], 0) / samples.length);
+        const sb = Math.round(samples.reduce((s, v) => s + v[2], 0) / samples.length);
         const idx = (y * info.width + x) * 4;
-        pixels[idx] = Math.round(rSum / weightSum);
-        pixels[idx + 1] = Math.round(gSum / weightSum);
-        pixels[idx + 2] = Math.round(bSum / weightSum);
+        pixels[idx] = sr;
+        pixels[idx + 1] = sg;
+        pixels[idx + 2] = sb;
         changed[p] = 1;
         mask[p] = 0;
         progressed++;
