@@ -1267,22 +1267,22 @@ const App: React.FC = () => {
         {/* MARKER - Ultra Stable Block Font */}
         <Box flexDirection="column" backgroundColor={bg}>
           <Text color={isLight ? "black" : "#00FFFF"} bold backgroundColor={bg}>
-            ██████╗ █████╗ ██████╗ ██╗ ██╗███████╗██████╗
+            {"██████╗ █████╗ ██████╗ ██╗ ██╗███████╗██████╗"}
           </Text>
           <Text color={isLight ? "black" : "#00E5FF"} bold backgroundColor={bg}>
-            ██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗
+            {"██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔══██╗"}
           </Text>
           <Text color={accent} bold backgroundColor={bg}>
-            ██████╔╝███████║██████╔╝█████╔╝ █████╗ ██████╔╝
+            {"██████╔╝███████║██████╔╝█████╔╝ █████╗ ██████╔╝"}
           </Text>
           <Text color={accent} bold backgroundColor={bg}>
-            ██╔══██╗██╔══██║██╔══██╗██╔═██╗ ██╔══╝ ██╔══██╗
+            {"██╔══██╗██╔══██║██╔══██╗██╔═██╗ ██╔══╝ ██╔══██╗"}
           </Text>
           <Text color={accent} bold backgroundColor={bg}>
-            ██║ ██║██║ ██║██║ ██║██║ ██╗███████╗██║ ██║
+            {"██║ ██║██║ ██║██║ ██║██║ ██╗███████╗██║ ██║"}
           </Text>
           <Text color={accent} bold backgroundColor={bg}>
-            ╚═╝ ╚═╝╚═╝ ╚═╝╚═╝ ╚═╝╚═╝ ╚═╝╚══════╝╚═╝ ╚═╝
+            {"╚═╝ ╚═╝╚═╝ ╚═╝╚═╝ ╚═╝╚═╝ ╚═╝╚══════╝╚═╝ ╚═╝"}
           </Text>
         </Box>
 
@@ -1291,28 +1291,27 @@ const App: React.FC = () => {
         {/* CLEANER - Ultra Stable Block Font */}
         <Box flexDirection="column" backgroundColor={bg}>
           <Text color={accent} bold backgroundColor={bg}>
-            ██████╗██╗ ███████╗ █████╗ ███╗ ██╗███████╗██████╗
+            {"██████╗██╗ ███████╗ █████╗ ███╗ ██╗███████╗██████╗"}
           </Text>
           <Text color={accent} bold backgroundColor={bg}>
-            ██╔════╝██║ ██╔════╝██╔══██╗████╗ ██║██╔════╝██╔══██╗
+            {"██╔════╝██║ ██╔════╝██╔══██╗████╗ ██║██╔════╝██╔══██╗"}
           </Text>
           <Text color={success} bold backgroundColor={bg}>
-            ██║ ██║ █████╗ ███████║██╔██╗ ██║█████╗ ██████╔╝
+            {"██║ ██║ █████╗ ███████║██╔██╗ ██║█████╗ ██████╔╝"}
           </Text>
           <Text color={success} bold backgroundColor={bg}>
-            ██║ ██║ ██╔══╝ ██╔══██║██║╚██╗██║██╔══╝ ██╔══██╗
+            {"██║ ██║ ██╔══╝ ██╔══██║██║╚██╗██║██╔══╝ ██╔══██╗"}
           </Text>
           <Text color={accent} bold backgroundColor={bg}>
-            ╚██████╗███████╗███████╗██║ ██║██║ ╚████║███████╗██║ ██║
+            {"╚██████╗███████╗███████╗██║ ██║██║ ╚████║███████╗██║ ██║"}
           </Text>
           <Box backgroundColor={bg}>
             <Text color={accent} bold backgroundColor={bg}>
-              {" "}
-              ╚═════╝╚══════╝╚══════╝╚═╝ ╚═╝╚═╝ ╚═══╝╚══════╝╚═╝ ╚═╝
+              {"╚═════╝╚══════╝╚══════╝╚═╝ ╚═╝╚═╝ ╚═══╝╚══════╝╚═╝ ╚═╝"}
             </Text>
             <Text color={fg} bold backgroundColor={bg}>
-              {" "}
-              v{pkg.version}
+              {" v"}
+              {pkg.version}
             </Text>
           </Box>
         </Box>
