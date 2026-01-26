@@ -1,3 +1,5 @@
+import type { DetectionTrace } from "./cleaner/trace";
+
 // 图像清理统计指标 (用于回归套件)
 export interface CleanerStats {
   changedPixels: number; // 总共修改的像素数
@@ -9,6 +11,7 @@ export interface CleanerStats {
 export interface CleanerResult {
   outputBuffer: Buffer;
   stats: CleanerStats;
+  trace?: DetectionTrace;
 }
 
 // AI Provider 通用接口

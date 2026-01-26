@@ -1,6 +1,8 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, extname, join } from "node:path";
+import sharp from "sharp";
 import { cleanMarkersLocal } from "../src/lib/cleaner";
+import type { DetectionTrace } from "../src/lib/cleaner";
 import type { BoundingBox, CleanerStats } from "../src/lib/types";
 
 // ============ TUI 辅助与旗舰级 Logo ============
@@ -27,7 +29,83 @@ function printLogo() {
   console.log(`${colors.yellow}   REGRESSION TEST SUITE ${colors.dim}v2.0.0${colors.reset}\n`);
 }
 
+const traceColors = {
+  used: "#4ade80",
+  skipped: "#f97316",
+  roi: "#38bdf8",
+};
+
+function sanitizeTraceName(filename: string): string {
+  const base = basename(filename, extname(filename));
+  return base.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase() || "trace";
+}
+
+function rectAttributes(rect: { x1: number; y1: number; x2: number; y2: number }) {
+  const width = rect.x2 - rect.x1;
+  const height = rect.y2 - rect.y1;
+  if (width <= 0 || height <= 0) return null;
+  return { x: rect.x1, y: rect.y1, width, height };
+}
+
+function buildTraceSvg(trace: DetectionTrace): string {
+  const { width, height, usedRects, skippedRects, roiRects } = trace;
+  const elements: string[] = [];
+
+  usedRects.forEach((rect) => {
+    const attr = rectAttributes(rect);
+    if (!attr) return;
+    elements.push(
+      `<rect x="${attr.x}" y="${attr.y}" width="${attr.width}" height="${attr.height}" fill="none" stroke="${traceColors.used}" stroke-width="3" />`,
+    );
+  });
+  skippedRects.forEach((rect) => {
+    const attr = rectAttributes(rect);
+    if (!attr) return;
+    elements.push(
+      `<rect x="${attr.x}" y="${attr.y}" width="${attr.width}" height="${attr.height}" fill="none" stroke="${traceColors.skipped}" stroke-width="3" stroke-dasharray="8 4" />`,
+    );
+  });
+  roiRects.forEach((rect) => {
+    const attr = rectAttributes(rect);
+    if (!attr) return;
+    elements.push(
+      `<rect x="${attr.x}" y="${attr.y}" width="${attr.width}" height="${attr.height}" fill="none" stroke="${traceColors.roi}" stroke-width="1" stroke-opacity="0.7" />`,
+    );
+  });
+
+  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">${elements.join(
+    "",
+  )}</svg>`;
+}
+
+async function saveDetectionTrace(
+  traceDir: string,
+  filename: string,
+  buffer: Buffer,
+  trace: DetectionTrace,
+): Promise<{ overlay: string; json: string }> {
+  const safeName = sanitizeTraceName(filename);
+  const jsonPath = join(traceDir, `${safeName}.trace.json`);
+  writeFileSync(jsonPath, JSON.stringify(trace, null, 2));
+
+  const overlaySvg = buildTraceSvg(trace);
+  const overlayBuffer = await sharp(Buffer.from(overlaySvg)).png().toBuffer();
+  const overlayPath = join(traceDir, `${safeName}.overlay.png`);
+  const combined = await sharp(buffer).composite([{ input: overlayBuffer, blend: "over" }]).png().toBuffer();
+  writeFileSync(overlayPath, combined);
+
+  return { overlay: overlayPath, json: jsonPath };
+}
+
 // ============ 数据结构 ============
+
+interface TraceSummary {
+  used: number;
+  skipped: number;
+  roi: number;
+  texture: number;
+  isComplexScene: boolean;
+}
 
 interface RegressResult {
   file: string;
@@ -38,6 +116,11 @@ interface RegressResult {
   diff?: {
     changed: number; // diff from baseline
     fallback: number;
+  };
+  trace?: TraceSummary;
+  traceArtifacts?: {
+    overlay: string;
+    json: string;
   };
 }
 
@@ -61,6 +144,10 @@ async function runRegression() {
   const baselineFile = join(reportDir, "baseline.json");
 
   if (!existsSync(reportDir)) mkdirSync(reportDir, { recursive: true });
+
+  const traceRunId = Date.now();
+  const traceDir = join(reportDir, `trace_${traceRunId}`);
+  if (!existsSync(traceDir)) mkdirSync(traceDir, { recursive: true });
 
   // 读取 Baseline
   let baseline: BaselineData = {};
@@ -97,6 +184,9 @@ async function runRegression() {
   let totalChangedPixels = 0;
   let totalFallbackPixels = 0;
   let failedCount = 0;
+  let totalUsedRects = 0;
+  let totalSkippedRects = 0;
+  let totalRoiRects = 0;
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i]!;
@@ -118,7 +208,23 @@ async function runRegression() {
       }
       if (boxes.length === 0) boxes = [{ ymin: 0.425, xmin: 0.425, ymax: 0.575, xmax: 0.575 }];
 
-      const { stats } = await cleanMarkersLocal(inputBuffer, boxes);
+      const cleanResult = await cleanMarkersLocal(inputBuffer, boxes);
+      const { stats, trace } = cleanResult;
+      let traceSummary: TraceSummary | undefined;
+      let traceArtifacts: RegressResult["traceArtifacts"] | undefined;
+      if (trace) {
+        traceSummary = {
+          used: trace.usedRects.length,
+          skipped: trace.skippedRects.length,
+          roi: trace.roiRects.length,
+          texture: Number(trace.textureScore.toFixed(1)),
+          isComplexScene: trace.isComplexScene,
+        };
+        totalUsedRects += traceSummary.used;
+        totalSkippedRects += traceSummary.skipped;
+        totalRoiRects += traceSummary.roi;
+        traceArtifacts = await saveDetectionTrace(traceDir, file, inputBuffer, trace);
+      }
 
       // Baseline comparison logic
       let diffStr = "";
@@ -146,7 +252,9 @@ async function runRegression() {
         stats,
         success: true,
         boxCount: boxes.length,
-        diff: diffData
+        diff: diffData,
+        trace: traceSummary,
+        traceArtifacts,
       });
 
       if (updateBaseline) {
@@ -204,6 +312,10 @@ async function runRegression() {
   console.log(`• 平均耗时: ${colors.bold}${avgDuration}ms${colors.reset}`);
   console.log(`• 像素变更: ${colors.cyan}${totalChangedPixels.toLocaleString()}${colors.reset}`);
   console.log(`• Fallback: ${colors.yellow}${totalFallbackPixels.toLocaleString()}${colors.reset}`);
+  console.log(`${colors.dim}• Trace 目录: ${traceDir}${colors.reset}`);
+  console.log(
+    `• Trace 矩形: used ${totalUsedRects}, skipped ${totalSkippedRects}, ROI ${totalRoiRects}`,
+  );
   console.log("─".repeat(80) + "\n");
 
   // 生成 Markdown 报告
@@ -211,14 +323,21 @@ async function runRegression() {
   let md = `# Regression Test Report\n\nGenerated at: ${new Date().toLocaleString()}\n`;
   md += `- Mode: ${updateBaseline ? "Update Baseline" : "Regression Check"}\n`;
   md += `- Status: ${failedCount === 0 ? "PASSED" : "FAILED"}\n\n`;
-  md += `## Details\n| File | Status | Duration | Change % | Fallback | Diff |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+  md += `## Details\n| File | Status | Duration | Change % | Fallback | Used | Skipped | ROI | Texture | Complex | Diff |\n| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n`;
 
   for (const r of results) {
     const ratio = r.success ? ((r.stats.changedPixels / r.stats.totalPixels) * 100).toFixed(2) : "N/A";
     const statusIcon = r.success && (!r.diff || (r.diff.changed === 0 && r.diff.fallback === 0)) ? "✅" : "❌";
     const diffText = r.diff ? `ΔC:${r.diff.changed} ΔF:${r.diff.fallback}` : "-";
-    md += `| ${r.file} | ${statusIcon} | ${r.stats.durationMs}ms | ${ratio}% | ${r.stats.fallbackPixels} | ${diffText} |\n`;
+    const usedText = r.trace ? r.trace.used.toString() : "-";
+    const skippedText = r.trace ? r.trace.skipped.toString() : "-";
+    const roiText = r.trace ? r.trace.roi.toString() : "-";
+    const textureText = r.trace ? r.trace.texture.toFixed(1) : "N/A";
+    const complexText = r.trace ? (r.trace.isComplexScene ? "Yes" : "No") : "-";
+    md += `| ${r.file} | ${statusIcon} | ${r.stats.durationMs}ms | ${ratio}% | ${r.stats.fallbackPixels} | ${usedText} | ${skippedText} | ${roiText} | ${textureText} | ${complexText} | ${diffText} |\n`;
   }
+
+  md += `\nTrace artifacts directory: ${traceDir}\n`;
 
   writeFileSync(reportPath, md);
   console.log(`${colors.dim}详细报告已保存至: ${reportPath}${colors.reset}\n`);

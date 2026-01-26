@@ -8,7 +8,8 @@ import {
   detectStrokeMask,
 } from "../detectors/mask";
 import { estimateTextureComplexity, mergeBoxes, toPixelRect } from "../utils/image";
-import type { PixelRect } from "../utils/image";
+import type { PixelRect } from "../rect";
+import type { DetectionTrace } from "../trace";
 import type { CleanerContext } from "./context";
 import { inpaintMask, smoothChangedPixels } from "./inpaint";
 import {
@@ -111,6 +112,9 @@ export async function cleanMarkersLocal(
     const areaRatio = ((rect.x2 - rect.x1) * (rect.y2 - rect.y1)) / (width * height);
     const isHuge = areaRatio > CLEANER_THRESHOLDS.HUGE_BOX_AREA_RATIO;
     const band = isHuge ? Math.min(bandBase, 12) : bandBase;
+    const hugeScoreThreshold = isComplexScene
+      ? CLEANER_THRESHOLDS.HUGE_BOX_MIN_SCORE_COMPLEX
+      : CLEANER_THRESHOLDS.HUGE_BOX_MIN_SCORE_SIMPLE;
 
     let forceFromLocal = false;
     for (const lb of localBoxes) {
@@ -129,7 +133,7 @@ export async function cleanMarkersLocal(
     if (
       isHuge &&
       !forceFromLocal &&
-      scoreFrameMarkerPixels(ctx, rect, band, 4) < (isComplexScene ? 32 : 24)
+      scoreFrameMarkerPixels(ctx, rect, band, 4) < hugeScoreThreshold
     ) {
       skippedRects.push(rect);
       continue;
@@ -177,6 +181,16 @@ export async function cleanMarkersLocal(
     durationMs: Date.now() - startTime,
   };
 
+  const trace: DetectionTrace = {
+    usedRects: usedRects.map((it) => it.rect),
+    skippedRects,
+    roiRects,
+    textureScore,
+    isComplexScene,
+    width,
+    height,
+  };
+
   const out = sharp(pixels, {
     raw: { width: info.width, height: info.height, channels: 4 },
   }).withMetadata();
@@ -192,5 +206,5 @@ export async function cleanMarkersLocal(
     outputBuffer = await out.png().toBuffer();
   }
 
-  return { outputBuffer, stats };
+  return { outputBuffer, stats, trace };
 }

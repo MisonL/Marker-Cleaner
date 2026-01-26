@@ -1,9 +1,9 @@
 import type sharp from "sharp";
 import { DependencyManager } from "../../deps-manager";
 import type { BoundingBox } from "../../types";
+import type { PixelRect } from "../rect";
 
 export type SharpFn = typeof sharp;
-export type PixelRect = { x1: number; y1: number; x2: number; y2: number };
 
 /**
  * 估算图像背景纹理复杂度 (基于 Sobel 梯度)
