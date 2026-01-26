@@ -5,6 +5,10 @@ import type { CleanerContext } from "./context";
 /**
  * 在 Context 上执行插值修复
  */
+/**
+ * Texture Synthesis Inpainting (Simplified PatchMatch)
+ * Finds the best matching patch in the neighborhood and copies the center pixel.
+ */
 export function inpaintMask(ctx: CleanerContext, mask: Uint8Array): number {
   const { pixels, changed, width, height, info } = ctx;
   const indices: number[] = [];
@@ -15,116 +19,160 @@ export function inpaintMask(ctx: CleanerContext, mask: Uint8Array): number {
 
   let fallbackCount = 0;
 
-  const sampleAt = (x: number, y: number) => {
-    const idx = (y * info.width + x) * 4;
-    return [pixels[idx] ?? 0, pixels[idx + 1] ?? 0, pixels[idx + 2] ?? 0] as const;
+  const getPixel = (x: number, y: number) => {
+    const idx = (y * width + x) * 4;
+    return [pixels[idx], pixels[idx + 1], pixels[idx + 2]];
   };
 
-  for (let pass = 0; pass < 4; pass++) {
+  const PATCH_RADIUS = 2; // 5x5 patch
+  const SEARCH_RADIUS = 20; // Search up to 20px away
+  const SEARCH_STEP = 2; // Optimization: skip every other pixel
+  
+  // Create a copy of mask to check original state during passes
+  const originalMask = new Uint8Array(mask);
+
+  // We do multiple passes to fill from edges inward
+  for (let pass = 0; pass < 8; pass++) {
     let progressed = 0;
+    
+    // Shuffle indices for better randomness in filling? Or just Iterate.
+    // Iterating sequentially is fine for onion-peeling effect.
+    
     for (const p of indices) {
-      if (mask[p] === 0) continue;
+      if (mask[p] === 0) continue; // Already filled
+      
       const x = p % width;
       const y = Math.floor(p / width);
 
-      const samples: Array<[number, number, number]> = [];
-      for (let radius = 1; radius <= 12 && samples.length < 10; radius++) {
-        const candidates: Array<[number, number]> = [
-          [x, y - radius],
-          [x, y + radius],
-          [x - radius, y],
-          [x + radius, y],
-          [x - radius, y - radius],
-          [x + radius, y - radius],
-          [x - radius, y + radius],
-          [x + radius, y + radius],
-        ];
-        for (const [cx, cy] of candidates) {
-          if (cx < 0 || cx >= width || cy < 0 || cy >= height) continue;
-          const midx = cy * width + cx;
-          if (mask[midx] === 1) continue;
-          const [r, g, b] = sampleAt(cx, cy);
-          if (isLikelyMarkPixel(r, g, b)) continue;
-          samples.push([r, g, b]);
-          if (samples.length >= 6) break;
+      // check if we have enough neighbors to form a context
+      // Count known pixels in 5x5 patch
+      let knownPixels = 0;
+      for (let dy = -PATCH_RADIUS; dy <= PATCH_RADIUS; dy++) {
+        for (let dx = -PATCH_RADIUS; dx <= PATCH_RADIUS; dx++) {
+          const ny = y + dy;
+          const nx = x + dx;
+          if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+             if (mask[ny * width + nx] === 0) knownPixels++;
+          }
         }
       }
 
-      const [s0, s1] = samples;
-      if (samples.length >= 2 && s0 && s1) {
-        let minR = 255;
-        let minG = 255;
-        let minB = 255;
-        let maxR = 0;
-        let maxG = 0;
-        let maxB = 0;
-        for (const [rr, gg, bb] of samples) {
-          if (rr < minR) minR = rr;
-          if (gg < minG) minG = gg;
-          if (bb < minB) minB = bb;
-          if (rr > maxR) maxR = rr;
-          if (gg > maxG) maxG = gg;
-          if (bb > maxB) maxB = bb;
-        }
-        const rangeSum = maxR - minR + (maxG - minG) + (maxB - minB);
-        if (
-          (samples.length >= 3 && rangeSum > CLEANER_THRESHOLDS.INPAINT_SAMPLE_RANGE_3) ||
-          (samples.length === 2 && rangeSum > CLEANER_THRESHOLDS.INPAINT_SAMPLE_RANGE_2)
-        ) {
-          continue;
-        }
+      // If we don't have enough context (e.g. at least 3 pixels), skip for now (wait for neighbors to fill)
+      if (knownPixels < 3) continue;
 
-        const sr = Math.round(samples.reduce((s, v) => s + v[0], 0) / samples.length);
-        const sg = Math.round(samples.reduce((s, v) => s + v[1], 0) / samples.length);
-        const sb = Math.round(samples.reduce((s, v) => s + v[2], 0) / samples.length);
-        const idx = (y * info.width + x) * 4;
-        pixels[idx] = sr;
-        pixels[idx + 1] = sg;
-        pixels[idx + 2] = sb;
-        changed[p] = 1;
-        mask[p] = 0;
+      // Search for best patch
+      let bestScore = Infinity;
+      let bestR = 0, bestG = 0, bestB = 0;
+      let found = false;
+
+      // Spiral search or simple box search
+      for (let dy = -SEARCH_RADIUS; dy <= SEARCH_RADIUS; dy += SEARCH_STEP) {
+        for (let dx = -SEARCH_RADIUS; dx <= SEARCH_RADIUS; dx += SEARCH_STEP) {
+           const sy = y + dy;
+           const sx = x + dx;
+           
+           if (sx < 0 || sx >= width || sy < 0 || sy >= height) continue;
+           
+           // Candidate center must be valid and NOT a red marker pixel
+           // Check if candidate PATCh is valid (mostly valid)
+           // Optimization: Just check center pixel validity first
+           const sIdx = sy * width + sx;
+           if (originalMask[sIdx] === 1 || mask[sIdx] === 1) continue; 
+           
+           const [sr, sg, sb] = getPixel(sx, sy);
+           if (isLikelyMarkPixel(sr, sg, sb)) continue;
+
+           // Compute patch difference (SSD)
+           let currentScore = 0;
+           let validComparisons = 0;
+
+           for (let py = -PATCH_RADIUS; py <= PATCH_RADIUS; py++) {
+             for (let px = -PATCH_RADIUS; px <= PATCH_RADIUS; px++) {
+                const ty = y + py;
+                const tx = x + px;
+                const csy = sy + py;
+                const csx = sx + px;
+                
+                if (ty < 0 || ty >= height || tx < 0 || tx >= width) continue;
+                if (csy < 0 || csy >= height || csx < 0 || csx >= width) continue;
+
+                // Compare only if target pixel is known
+                if (mask[ty * width + tx] === 0) {
+                   const [tr, tg, tb] = getPixel(tx, ty);
+                   const [cr, cg, cb] = getPixel(csx, csy);
+                   
+                   // Penalty if source patch contains mask or red pixels
+                   // (We already checked center, but checking neighbors prevents bleeding)
+                   if (originalMask[csy * width + csx] === 1) {
+                      currentScore += 100000; // invalid source patch
+                   } else {
+                      currentScore += Math.abs(tr - cr) + Math.abs(tg - cg) + Math.abs(tb - cb);
+                   }
+                   validComparisons++;
+                }
+             }
+           }
+
+           if (validComparisons > 0 && currentScore < bestScore) {
+              bestScore = currentScore;
+              bestR = sr;
+              bestG = sg;
+              bestB = sb;
+              found = true;
+              if (bestScore < 10) break; // Early exit if very good match
+           }
+        }
+        if (found && bestScore < 10) break; 
+      }
+
+      if (found) {
+        const idx = (y * width + x) * 4;
+        pixels[idx] = bestR;
+        pixels[idx + 1] = bestG;
+        pixels[idx + 2] = bestB;
+        changed[p] = 1; // Mark as changed for smoothing later
+        mask[p] = 0;    // Mark as filled
         progressed++;
       }
     }
+    
     if (progressed === 0) break;
   }
 
-  // Fallback pass
+  // Fallback: Simple Average for any remaining holes
   for (const p of indices) {
     if (mask[p] === 0) continue;
     const x = p % width;
     const y = Math.floor(p / width);
-    let sr = 0;
-    let sg = 0;
-    let sb = 0;
-    let count = 0;
-    for (let dy = -2; dy <= 2; dy++) {
-      const ny = y + dy;
-      if (ny < 0 || ny >= height) continue;
-      for (let dx = -2; dx <= 2; dx++) {
-        const nx = x + dx;
-        if (nx < 0 || nx >= width) continue;
-        if (mask[ny * width + nx] === 0) {
-          const [r, g, b] = sampleAt(nx, ny);
-          if (!isLikelyMarkPixel(r, g, b)) {
-            sr += r;
-            sg += g;
-            sb += b;
-            count++;
-          }
-        }
+    let sr = 0, sg = 0, sb = 0, count = 0;
+    
+    // Larger radius for fallback
+    for (let dy = -5; dy <= 5; dy++) {
+      for (let dx = -5; dx <= 5; dx++) {
+         const nx = x + dx;
+         const ny = y + dy;
+         if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+         if (mask[ny * width + nx] === 0) {
+             const idx = (ny * width + nx) * 4;
+             sr += pixels[idx];
+             sg += pixels[idx+1];
+             sb += pixels[idx+2];
+             count++;
+         }
       }
     }
+
     if (count > 0) {
-      const idx = (y * info.width + x) * 4;
-      pixels[idx] = Math.round(sr / count);
-      pixels[idx + 1] = Math.round(sg / count);
-      pixels[idx + 2] = Math.round(sb / count);
-      mask[p] = 0;
-      changed[p] = 1;
-      fallbackCount++;
+       const idx = (y * width + x) * 4;
+       pixels[idx] = Math.round(sr / count);
+       pixels[idx + 1] = Math.round(sg / count);
+       pixels[idx + 2] = Math.round(sb / count);
+       mask[p] = 0;
+       changed[p] = 1;
+       fallbackCount++;
     }
   }
+
   return fallbackCount;
 }
 

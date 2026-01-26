@@ -4,7 +4,8 @@
  */
 export const CLEANER_THRESHOLDS = {
   // 背景纹理复杂度阈值（超过此值触发警告，建议改用 Native 模式）
-  TEXTURE_COMPLEXITY: 36,
+  // Update 2026-01-26: Lowered to 15 to better detect complex shelves (eggs/vegetables)
+  TEXTURE_COMPLEXITY: 15,
 
   // 超大框保护阈值（框面积 / 图片面积 > 此值 则跳过或降级处理）
   HUGE_BOX_AREA_RATIO: 0.2,
